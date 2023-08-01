@@ -70,9 +70,10 @@ model_training(X=X, y=y, name='err_corr')
 print('Successfully trained models...')
 
 # Test the models by use of the forward simulation
-i = 0
-forward_simulation(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], dfs_mod_delta_swe_all[i], 
-                   model_names=['nn_dir_pred.h5', 'rf_dir_pred.joblib'])
+station_names = ['cdp', 'oas', 'obs', 'ojp', 'rme', 'sap', 'snb', 'sod', 'swa', 'wfj']
+for i in range(10):
+    forward_simulation(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], dfs_mod_delta_swe_all[i], 
+                       ['nn_dir_pred.h5', 'rf_dir_pred.joblib'], station_names[i])
 
 # Print execution time
 end_time = time.time()

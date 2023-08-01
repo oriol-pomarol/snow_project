@@ -66,7 +66,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
     dfs_meteo_agg = []
 
     for i, df_met in enumerate(dfs_meteo):
-        print(f"Dataframe {i} of 10.")
+        print(f"Dataframe {i+1} of 10.")
         # Find the timezone corresponding to the location of the station
         tf = TimezoneFinder()
         timezone = tf.timezone_at(lat=locations[i,0], lng=locations[i,1])
