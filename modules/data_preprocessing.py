@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 from timezonefinder import TimezoneFinder
+import ephem
+import datetime
+import pytz
 
 def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
     # Define a list to save the ΔSWE measurements
@@ -63,6 +66,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
     dfs_meteo_agg = []
 
     for i, df_met in enumerate(dfs_meteo):
+        print(f"Dataframe {i} of 10.")
         # Find the timezone corresponding to the location of the station
         tf = TimezoneFinder()
         timezone = tf.timezone_at(lat=locations[i,0], lng=locations[i,1])
@@ -70,30 +74,25 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         # Create an empty dataframe for the aggregated variables
         df_agg = pd.DataFrame()
 
+        # Shift the data 12h to fit the snow obs, and remove the spare data
+        df_met.index = df_met.index + pd.Timedelta(hours=12)
+        df_met = df_met[11:-13]
+        
         for var_name in names_meteo_agg:
-
             # Take the variable of interest from the original DataFrame
             var = df_met[var_name[:-4]].copy()
 
-            # Shift the data 12h back to start resampling form 12:00
-            var.index = var.index + pd.Timedelta(hours=12)
-
-            # Group the DataFrame by day and filter out incomplete days
-            grouped_daily = var.groupby(var.index.floor('D'))
-            var_filtered = grouped_daily.filter(lambda x: len(x) == 24)
-
             # Aggregate using the indicated operation according to var_name
             if var_name[-3:] == 'avg':
-                var_agg = var_filtered.resample('D').mean()
+                var_agg = var.resample('D').mean()
             elif var_name[-3:] == 'int':
-                var_agg = var_filtered.resample('D').apply(positive_integral)
+                var_agg = var.resample('D').apply(positive_integral)
             elif var_name[-3:] == 'max':
-                var_agg = var_filtered.resample('D').max()
+                var_agg = var.resample('D').max()
             elif var_name[-3:] == 'dav':
-                var_agg = var_filtered.resample('D').apply(daytime_average, 
-                                                         location=locations[i],
-                                                         timezone = timezone)
-
+                var_agg = var.resample('D').apply(daytime_average,
+                                                  location=locations[i],
+                                                  timezone = timezone)
             # Add the variable to the DataFrame
             df_agg[var_name] = var_agg
 
@@ -135,10 +134,6 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
 ####################################################################################
 # EXTRA FUNCTIONS NEEDED FOR PROCESSING THE DATA
 ####################################################################################
-
-import ephem
-import datetime
-import pytz
 
 def calculate_sunrise_sunset(latitude, longitude, date, timezone):
     # Create an observer object
