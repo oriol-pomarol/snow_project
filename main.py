@@ -31,11 +31,15 @@ locations = np.column_stack((obs_data['Latitude'].to_numpy(),
                              obs_data['Longitude'].to_numpy()))
 
 # Load data
+print('Loading the data...')
 dfs_obs, dfs_met, dfs_mod = data_loading(obs_data, met_data)
+print('Successfully loaded the data...')
 
 # Preprocess data
+print('Pre-processing the data...')
 dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe_all, dfs_mod_delta_swe_filt = \
     data_preprocessing(dfs_obs, dfs_met, dfs_mod, locations)
+print('Successfully pre-processed the data...')
 
 # Choose what dfs can be used for testing and what only for observations
 dfs_test_idx = [1,2,3,5,6,8,9]

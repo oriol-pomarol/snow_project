@@ -3,7 +3,6 @@ import pandas as pd
 from timezonefinder import TimezoneFinder
 
 def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
-    print('Preprocessing data...')
     # Define a list to save the ΔSWE measurements
     dfs_obs_delta_swe = []
     # Iterate over stations and variables
@@ -33,6 +32,26 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
 
         # Append delta_swe to list 
         dfs_obs_delta_swe.append(df_delta_swe)
+
+    # Define a list to save the ΔSWE measurements
+    dfs_mod_delta_swe_all = []
+    dfs_mod_delta_swe_filt = []
+
+    # Iterate over each DataFrame in dfs_model
+    for i, df_mod in enumerate(dfs_model):
+        # Find ΔSWE
+        delta_swe = df_mod['mod_swe'][1:].to_numpy() - df_mod['mod_swe'][:-1].to_numpy()
+
+        # Check if ΔSWE is not limited by the available SWE
+        enough_swe = delta_swe != -1*df_mod['mod_swe'][:-1].values
+
+        # Subset based on the conditions set above and store as a df
+        df_delta_swe = pd.DataFrame({'time': df_mod[:-1].index,
+                                    'delta_swe':delta_swe})
+
+        # Append delta_swe to list and print the amount of measurements per station
+        dfs_mod_delta_swe_all.append(df_delta_swe)
+        dfs_mod_delta_swe_filt.append(df_delta_swe[enough_swe])
 
     # Define the names of the aggregated meteorological variables
     names_meteo_agg = ['Psurf_avg', 'Qair_avg', 'Qair_dav', 'Rainf_avg',
@@ -110,27 +129,6 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
 
         # Add the DataFrame to the list
         dfs_meteo_agg.append(df_agg)
-
-    # Define a list to save the ΔSWE measurements
-    dfs_mod_delta_swe_all = []
-    dfs_mod_delta_swe_filt = []
-
-    # Iterate over each DataFrame in dfs_model
-    for i, df_mod in enumerate(dfs_model):
-        # Find ΔSWE
-        delta_swe = df_mod['mod_swe'][1:].to_numpy() - df_mod['mod_swe'][:-1].to_numpy()
-
-        # Check if ΔSWE is not limited by the available SWE
-        enough_swe = delta_swe != -1*df_mod['mod_swe'][:-1].values
-
-        # Subset based on the conditions set above and store as a df
-        df_delta_swe = pd.DataFrame({'time': df_mod[:-1].index,
-                                    'delta_swe':delta_swe})
-
-        # Append delta_swe to list and print the amount of measurements per station
-        dfs_mod_delta_swe_all.append(df_delta_swe)
-        dfs_mod_delta_swe_filt.append(df_delta_swe[enough_swe])
-    print('Successfully preprocessed data...')
 
     return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe_all, dfs_mod_delta_swe_filt
 

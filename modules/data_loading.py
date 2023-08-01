@@ -3,7 +3,6 @@ import os
 import pandas as pd
 
 def data_loading(obs_data, meteo_data):
-    print('Loading meteo and obs data...')
     # List to store the DataFrames
     dfs_meteo = []
     dfs_obs = []
@@ -72,13 +71,9 @@ def data_loading(obs_data, meteo_data):
         for var_name, variable_info in obs_variables.items():
             obs_file.write(str(variable_info) + "\n")
 
-    print('Successfully loaded meteo and obs data...')
-
     # Initialize the list of dataframes and initial times
     dfs_model = []
     start_dates = []
-
-    print('Loading modelled data...')
 
     # Specify the path to the parent directory containing the folders
     parent_directory = os.path.join('data', 'simus_CROCUS')
@@ -169,5 +164,5 @@ def data_loading(obs_data, meteo_data):
 
         # Store the dataframe into the list
         dfs_model.append(df_mod)
-    print('Successfully loaded modelled data...')
+
     return dfs_obs, dfs_meteo, dfs_model
