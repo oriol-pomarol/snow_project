@@ -5,52 +5,107 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
 from tensorflow import keras
 import os
+import pickle
 
-def forward_simulation(obs, mod, meteo_agg, mod_delta_swe_all, model_names, station_name):
+def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, 
+                       model_names, station_year=None, load_data=False):
+    # Store the station names
+    station_names = ['cdp'] #'cdp', 'oas', ... , 'sap', 'snb', 'sod', 'swa', 'wfj'
+    n_stations = len(station_names)
+
+    if not load_data:
+        # Create an empty list for the predictions and a df for the MSE
+        pred_list = []
+        df_mse = pd.DataFrame(columns=model_names)
+
+        for i in range(n_stations):
+            print(f"Station {i+1} of {n_stations}.")
+            pred_swe_arr, mse_swe_arr = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
+                                                            dfs_mod_delta_swe_all[i], model_names)
+            pred_list.append(pred_swe_arr)
+            df_mse.loc[i] = list(mse_swe_arr)
+        df_mse.index = station_names
+
+        # Save the MSE as csv and the predictions with pickle
+        df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
+        with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'wb') as file:
+            pickle.dump(pred_list, file)
+    else:
+        with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'rb') as file:
+            pred_list = pickle.load(file)
+
+    # Plot the results
+    fig, axs = plt.subplots(5, 2, figsize=(15, 8))
+    axs = axs.flatten()
+    for i in range(len(station_names)):
+        ax = axs[i]
+        for j, model_name in enumerate(model_names):
+            ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=model_name)
+        ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
+        ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('SWE')
+    ax.legend()
+    plt.savefig(os.path.join('results', 'fwd_sim.png'))
+
+    
+    if station_year:
+        i = station_names.index(station_year[:3])
+        year = int(station_year[4:])
+        # Plot the results for the year and station given
+        fig, ax = plt.subplots(1,1, figsize=(15, 8))
+        for j, model_name in enumerate(model_names):
+            mask = mask_measurements_by_year(dfs_meteo_agg[i], year)
+            ax.plot(dfs_meteo_agg[i].index[mask], pred_list[i][j][mask], label=model_name)
+        mask = mask_measurements_by_year(dfs_obs[i], year)
+        ax.plot(dfs_obs[i].index[mask], dfs_obs[i].values.ravel()[mask], label='Observed SWE')
+        mask = mask_measurements_by_year(dfs_mod[i], year)
+        ax.plot(dfs_mod[i].index[mask], dfs_mod[i].values.ravel()[mask], label='Modelled SWE')
+        ax.set_xlabel('Date')
+        ax.set_ylabel('SWE')
+        ax.legend()
+        plt.savefig(os.path.join('results', f'fwd_sim_{station_year}.png'))
+
+    return
+
+####################################################################################
+# EXTRA FUNCTIONS
+####################################################################################
+
+def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, model_names):
     # Initialize a vector for the predicted and observed SWE
     pred_swe_arr = np.zeros((len(model_names), len(meteo_agg)))
-    mse_swe_list = []
+    mse_swe_arr = np.zeros(len(model_names))
 
     # Make the forward simulation
     for i, model_name in enumerate(model_names):
-        # Find the trained model
+        # Load the trained model
         if 'rf' in model_name:
-            model = joblib.load(os.path.join('results', 'models', model_name))
+            model = joblib.load(os.path.join('results', 'models', model_name+'.joblib'))
         if 'nn' in model_name:
-            model = keras.models.load_model(os.path.join('results', 'models', model_name))
+            model = keras.models.load_model(os.path.join('results', 'models', model_name+'.h5'))
 
         # Define the X according to the model
         if ('dir_pred' in model_name) or ('data_aug' in model_name):
             fwd_X = meteo_agg
         elif 'err_corr' in model_name:
-            fwd_X = pd.concat(meteo_agg, mod_delta_swe_all)
+            fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
 
-        for j in range(len(pred_swe_arr)):
-            pred_y = model.predict(fwd_X.values[[j-1]])
-            pred_swe_arr[i,j] = max(pred_swe_arr[i,j-1] + pred_y, 0)
+        for j in range(1,len(meteo_agg)):
+            if 'nn' in model_name:
+                pred_y = model.predict(fwd_X.values[[j-1]], verbose=0)
+            else:
+                pred_y = model.predict(fwd_X.values[[j-1]])
+            pred_swe_arr[i,j] = max(pred_swe_arr[i,j-1] + pred_y.ravel(), 0)
         
         # Find the MSE and store it in the list
         pred_obs = pred_swe_arr[i][np.isin(fwd_X.index, obs.index)]
         mse_swe = mean_squared_error(obs.values, pred_obs)
-        mse_swe_list.append(mse_swe)
+        mse_swe_arr[i] = mse_swe
 
+    return pred_swe_arr, mse_swe_arr
 
-    # Save the MSE list
-    with open(os.path.join('results', f'{station_name}_mse.csv'), 'w') as file:
-        # Convert the list to a string representation (comma-separated values)
-        list_as_string = ','.join(str(item) for item in mse_swe_list)
-        # Write the string representation to the file
-        file.write(list_as_string)
-
-    # Plot the results
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for i, model_name in enumerate(model_names):
-        ax.plot(fwd_X.index, pred_swe_arr[i,:], label=model_name)
-    ax.plot(obs.index, obs.values, label='Observed SWE')
-    ax.plot(mod.index, mod.values, label="Modelled SWE")
-    ax.set_xlabel('Date')
-    ax.set_ylabel('SWE')
-    ax.legend()
-    plt.savefig(os.path.join('results', f'{station_name}_fwd_sim.png'))
-
-    return
+def mask_measurements_by_year(df, year):
+    start_date = pd.to_datetime(f'{year}-07-01')
+    end_date = pd.to_datetime(f'{year + 1}-07-01')
+    return (df.index >= start_date) & (df.index < end_date)

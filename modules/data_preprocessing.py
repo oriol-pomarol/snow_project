@@ -66,7 +66,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
     dfs_meteo_agg = []
 
     for i, df_met in enumerate(dfs_meteo):
-        print(f"Dataframe {i+1} of 10.")
+        print(f"Station {i+1} of 10.")
         # Find the timezone corresponding to the location of the station
         tf = TimezoneFinder()
         timezone = tf.timezone_at(lat=locations[i,0], lng=locations[i,1])
@@ -132,7 +132,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
     return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe_all, dfs_mod_delta_swe_filt
 
 ####################################################################################
-# EXTRA FUNCTIONS NEEDED FOR PROCESSING THE DATA
+# EXTRA FUNCTIONS
 ####################################################################################
 
 def calculate_sunrise_sunset(latitude, longitude, date, timezone):
