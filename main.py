@@ -39,14 +39,14 @@ print('Successfully pre-processed the data...')
 
 # Train the models with the different setups
 print('Training models...')
-model_training(dfs_obs, dfs_meteo_agg, dfs_mod)
+model_training(dfs_obs, dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe)
 print('Successfully trained models...')
 
-# Test the models by use of the forward simulation
-print('Performing forward simulation...')
-model_names = ['nn_dir_pred', 'rf_dir_pred']
-forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, model_names, station_year='cdp_2005')
-print('Successfully performed forward simulation...')
+# # Test the models by use of the forward simulation
+# print('Performing forward simulation...')
+# model_names = ['rf_dir_pred']
+# forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, model_names, station_year='cdp_2005')
+# print('Successfully performed forward simulation...')
 
 # Print execution time
 end_time = time.time()

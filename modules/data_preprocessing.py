@@ -32,6 +32,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         # Subset based on the conditions set above and store as a df
         df_delta_swe = pd.DataFrame({'time': df_obs[np.append(consecutive_days & enough_swe, False)].index, 
                                      'delta_swe':delta_swe[consecutive_days & enough_swe]})
+        df_delta_swe.set_index('time', inplace=True)
 
         # Append delta_swe to list 
         dfs_obs_delta_swe.append(df_delta_swe)
@@ -51,10 +52,12 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         # Subset based on the conditions set above and store as a df
         df_delta_swe = pd.DataFrame({'time': df_mod[:-1].index,
                                     'delta_swe':delta_swe})
+        df_delta_swe.set_index('time', inplace=True)
 
         # Append delta_swe to list and print the amount of measurements per station
         dfs_mod_delta_swe_all.append(df_delta_swe)
         dfs_mod_delta_swe_filt.append(df_delta_swe[enough_swe])
+
 
     # Define the names of the aggregated meteorological variables
     names_meteo_agg = ['Psurf_avg', 'Qair_avg', 'Qair_dav', 'Rainf_avg',

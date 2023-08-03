@@ -36,14 +36,14 @@ def data_loading(obs_data, meteo_data):
         df_meteo = dataset_meteo.to_dataframe()
         df_obs = dataset_obs.to_dataframe()
 
-        # Take only the first obs sample for each unique time value
-        df_obs = df_obs.groupby('time').first()
-
         # Take the available snow water equivalent measurements at each station
         if 'snw_auto' in df_obs.columns:
             df_obs = df_obs[['snw_auto']].dropna()
         else:
             df_obs = df_obs[['snw_man']].dropna()
+
+        # Take only the first obs sample for each unique time value
+        df_obs = df_obs.groupby('time').first()
 
         # Take only the measurements at 12:00 for the Reynolds station
         if name_obs == 'obs_insitu_rme_1988_2008':
