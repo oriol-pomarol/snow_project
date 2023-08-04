@@ -36,11 +36,12 @@ def data_loading(obs_data, meteo_data):
         df_meteo = dataset_meteo.to_dataframe()
         df_obs = dataset_obs.to_dataframe()
 
+
         # Take the available snow water equivalent measurements at each station
         if 'snw_auto' in df_obs.columns:
-            df_obs = df_obs[['snw_auto']].dropna()
+            df_obs = df_obs[['snw_auto']]
         else:
-            df_obs = df_obs[['snw_man']].dropna()
+            df_obs = df_obs[['snw_man']]
 
         # Take only the first obs sample for each unique time value
         df_obs = df_obs.groupby('time').first()
@@ -56,8 +57,8 @@ def data_loading(obs_data, meteo_data):
         df_obs.index = pd.to_datetime(df_obs.index.date)
 
         # Append the DataFrames to the corresponding list
-        dfs_meteo.append(df_meteo)
-        dfs_obs.append(df_obs)
+        dfs_meteo.append(df_meteo.dropna())
+        dfs_obs.append(df_obs.dropna())
 
     # Save variable information for the meteo dataset to a file
     with open(os.path.join('results', 'variables_meteo.txt'), "w") as meteo_file:

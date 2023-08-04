@@ -12,18 +12,15 @@ def model_training(dfs_obs, dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     # dfs_test_idx = [1,2,3,5,6,8,9]
     dfs_obs_train_idx = [0,4,7]
 
-    for j in range(10):
-        print(len(dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index]))
-
     # Direct prediction
     X = pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx])
-    y = pd.concat([dfs_obs[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx])
+    y = pd.concat([dfs_obs_delta_swe[j] for j in dfs_obs_train_idx])
     train_model(X=X, y=y, name='dir_pred')
 
     # Error correction
     X = pd.concat([pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
                             dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) for j in dfs_obs_train_idx])
-    y = pd.concat([dfs_obs[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx])
+    y = pd.concat([dfs_obs_delta_swe[j] for j in dfs_obs_train_idx])
     train_model(X=X, y=y, name='err_corr')
 
     # # Data augmentation
