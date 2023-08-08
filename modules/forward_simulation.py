@@ -10,7 +10,7 @@ import pickle
 def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, 
                        model_names, station_year=None, load_data=False):
     # Store the station names
-    station_names = ['cdp'] #'cdp', 'oas', ... , 'sap', 'snb', 'sod', 'swa', 'wfj'
+    station_names = ['cdp', 'oas', 'obs', 'ojp', 'rme', 'sap', 'snb', 'sod', 'swa', 'wfj']
     n_stations = len(station_names)
 
     if not load_data:
