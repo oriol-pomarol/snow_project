@@ -8,20 +8,23 @@ import os
 import pickle
 
 def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, 
-                       model_names, station_year=None, load_data=False):
-    # Store the station names
+                       station_year=None, load_data=False):
+    # Store the station names for which forward simulation is performed
     station_names = ['cdp', 'oas', 'obs', 'ojp', 'rme', 'sap', 'snb', 'sod', 'swa', 'wfj']
     n_stations = len(station_names)
+
+    # Determine what modes to run
+    modes = ['dir_pred', 'err_corr']
 
     if not load_data:
         # Create an empty list for the predictions and a df for the MSE
         pred_list = []
-        df_mse = pd.DataFrame(columns=model_names)
+        df_mse = pd.DataFrame(columns=modes)
 
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
             pred_swe_arr, mse_swe_arr = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
-                                                            dfs_mod_delta_swe_all[i], model_names)
+                                                            dfs_mod_delta_swe_all[i], modes)
             pred_list.append(pred_swe_arr)
             df_mse.loc[i] = list(mse_swe_arr)
         df_mse.index = station_names
@@ -39,8 +42,8 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
     axs = axs.flatten()
     for i in range(len(station_names)):
         ax = axs[i]
-        for j, model_name in enumerate(model_names):
-            ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=model_name)
+        for j, mode in enumerate(modes):
+            ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=mode)
         ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
         ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
     ax.set_xlabel('Date')
@@ -54,9 +57,9 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
         year = int(station_year[4:])
         # Plot the results for the year and station given
         fig, ax = plt.subplots(1,1, figsize=(15, 8))
-        for j, model_name in enumerate(model_names):
+        for j, mode in enumerate(modes):
             mask = mask_measurements_by_year(dfs_meteo_agg[i], year)
-            ax.plot(dfs_meteo_agg[i].index[mask], pred_list[i][j][mask], label=model_name)
+            ax.plot(dfs_meteo_agg[i].index[mask], pred_list[i][j][mask], label=mode)
         mask = mask_measurements_by_year(dfs_obs[i], year)
         ax.plot(dfs_obs[i].index[mask], dfs_obs[i].values.ravel()[mask], label='Observed SWE')
         mask = mask_measurements_by_year(dfs_mod[i], year)
@@ -72,27 +75,33 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 # EXTRA FUNCTIONS
 ####################################################################################
 
-def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, model_names):
+def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
     # Initialize a vector for the predicted and observed SWE
-    pred_swe_arr = np.zeros((len(model_names), len(meteo_agg)))
-    mse_swe_arr = np.zeros(len(model_names))
+    pred_swe_arr = np.zeros((len(modes), len(meteo_agg)))
+    mse_swe_arr = np.zeros(len(modes))
 
     # Make the forward simulation
-    for i, model_name in enumerate(model_names):
+    for i, mode in enumerate(modes):
         # Load the trained model
-        if 'rf' in model_name:
-            model = joblib.load(os.path.join('results', 'models', model_name+'.joblib'))
-        if 'nn' in model_name:
-            model = keras.models.load_model(os.path.join('results', 'models', model_name+'.h5'))
+        files_in_folder = os.listdir(os.path.join('results', 'models'))
+        for file in files_in_folder:
+            if mode in file:
+                model_name = file
+                break
+        
+        if '.joblib' in model_name:
+            model = joblib.load(os.path.join('results', 'models', model_name))
+        if '.h5' in model_name:
+            model = keras.models.load_model(os.path.join('results', 'models', model_name))
 
         # Define the X according to the model
-        if ('dir_pred' in model_name) or ('data_aug' in model_name):
+        if (mode == 'dir_pred') or (mode == 'data_aug'):
             fwd_X = meteo_agg
-        elif 'err_corr' in model_name:
+        elif mode == 'err_corr':
             fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
 
         for j in range(1,len(meteo_agg)):
-            if 'nn' in model_name:
+            if '.h5' in model_name:
                 pred_y = model.predict(fwd_X.values[[j-1]], verbose=0)
             else:
                 pred_y = model.predict(fwd_X.values[[j-1]])

@@ -23,16 +23,16 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
     model_dp = model_selection(X=X, y=y)
 
-    # # Error correction
-    # X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
-    #                 dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
-    #                     for j in dfs_obs_train_idx]
-    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    # model_ec = model_selection(X=X, y=y)
+    # Error correction
+    X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
+                    dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
+                        for j in dfs_obs_train_idx]
+    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    model_ec = model_selection(X=X, y=y)
 
     # Data augmentation
     # Set the weight of the modelled values as a whole compared to the observations
-    weight_mod = 0.5
+    # weight_mod = 0.5
     # for i in dfs_test_idx:
     #     X_obs = pd.concat([dfs_meteo_agg[j].loc[dfs_obs[j].index] for j in dfs_obs_train_idx])
     #     X_mod = pd.concat([dfs_meteo_agg[j].loc[dfs_mod[j].index] for j in dfs_test_idx if j!=i])
@@ -43,12 +43,16 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     #     train_model(X=pd.concat([X_obs,X_mod]), y=y, sample_weight=sample_weight, name=f'data_aug_{i}')
     #     models[model_name] = model
 
+    # Move any files in the models folder to an old_files folder
+    source_folder = os.path.join('results', 'models')
+    move_old_files(source_folder)
+
     # Save the models
-    for model, setup in zip([model_dp],['dir_pred']):
+    for model, mode in zip([model_dp, model_ec],['dir_pred', 'err_corr']):
         if 'rf' in str(model):
-            joblib.dump(model.model, os.path.join('results', 'models', f'{model.get_model_type()}_{setup}.joblib'))
+            joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif 'nn' in str(model):
-            model.model.save(os.path.join('results', 'models', f'{model.get_model_type()}_{setup}.h5'))
+            model.model.save(os.path.join(source_folder, f'{mode}.h5'))
     return
 
 ####################################################################################
@@ -62,8 +66,8 @@ def model_selection(X, y, sample_weight=None):
 
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
-    max_samples_vals = [None, 0.5, 0.8]
-    layers_vals = [[32], [128], [64,64], [32, 32, 32], [128, 128, 128]]
+    max_samples_vals = [None] #, 0.5, 0.8
+    layers_vals = [[32], [128]] #, [64,64], [32, 32, 32], [128, 128, 128]
     learning_rate_vals = [1e-2, 1e-4]
 
     # Initialize a RF model for each combination of HP
@@ -90,12 +94,17 @@ def model_selection(X, y, sample_weight=None):
             print(f'Train/val split {i+1} of {len(X)}.')
             model.fit(X=pd.concat([X[j] for j in range(len(X)) if j!=i]).values, 
                       y=pd.concat([y[j] for j in range(len(X)) if j!=i]).values,
-                      sample_weight=sample_weight)
+                      sample_weight=sample_weight) # Need to change sample weight to the right subset
             loss = model.test(X=X[i].values, y=y[i].values)
             losses[m,i] = loss
 
+    # Select the best model
     mean_loss = np.mean(losses, axis=1)
     best_model = models[np.argmin(mean_loss)]
+
+    # Train the best model on all the data
+    best_model.fit(X=pd.concat(X).values, y=pd.concat(y).values, sample_weight=sample_weight)
+
     
     # # Plot the MSE history of the training
     # plt.figure()
@@ -168,3 +177,23 @@ class Model:
             model_name += f"_{param_name}{value_str}"
         
         return model_name
+    
+def move_old_files(source_folder):
+    target_folder = os.path.join(source_folder, "old_files")
+    
+    # Create 'old_files' directory if it doesn't exist
+    if not os.path.exists(target_folder):
+        os.mkdir(target_folder)
+    
+    # List all files in the source folder
+    files = [f for f in os.listdir(source_folder) if os.path.isfile(os.path.join(source_folder, f))]
+    
+    if files:
+        print(f"Moving {len(files)} files to 'old_files' folder...")
+        for file in files:
+            source_path = os.path.join(source_folder, file)
+            target_path = os.path.join(target_folder, file)
+            os.rename(source_path, target_path)
+        print("Files moved successfully.")
+    else:
+        print("No files to move.")
