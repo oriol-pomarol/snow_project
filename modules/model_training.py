@@ -21,14 +21,14 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     # Direct prediction
     X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model_dp = model_selection(X=X, y=y)
+    model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
 
     # Error correction
     X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
                     dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
                         for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model_ec = model_selection(X=X, y=y)
+    model_ec = model_selection(X=X, y=y, mode = 'err_corr')
 
     # Data augmentation
     # Set the weight of the modelled values as a whole compared to the observations
@@ -59,15 +59,15 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, sample_weight=None):
+def model_selection(X, y, sample_weight=None, mode=''):
 
     # Initialize the models in a list
     models = []
 
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
-    max_samples_vals = [None] #, 0.5, 0.8
-    layers_vals = [[32], [128]] #, [64,64], [32, 32, 32], [128, 128, 128]
+    max_samples_vals = [None, 0.5, 0.8]
+    layers_vals = [[32], [128], [64,64], [32, 32, 32], [128, 128, 128]]
     learning_rate_vals = [1e-2, 1e-4]
 
     # Initialize a RF model for each combination of HP
@@ -75,7 +75,6 @@ def model_selection(X, y, sample_weight=None):
         for j, max_samples in enumerate(max_samples_vals):
             model = Model('rf')
             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
-            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Initialize a NN model for each combination of HP
@@ -83,15 +82,17 @@ def model_selection(X, y, sample_weight=None):
         for learning_rate in learning_rate_vals:
             model = Model('nn')
             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
+    hyperparameters = []
     for m, model in enumerate(models):
+        hyperparameters.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
+            model.create_model(X[0].shape[1])
             model.fit(X=pd.concat([X[j] for j in range(len(X)) if j!=i]).values, 
                       y=pd.concat([y[j] for j in range(len(X)) if j!=i]).values,
                       sample_weight=sample_weight) # Need to change sample weight to the right subset
@@ -102,20 +103,30 @@ def model_selection(X, y, sample_weight=None):
     mean_loss = np.mean(losses, axis=1)
     best_model = models[np.argmin(mean_loss)]
 
-    # Train the best model on all the data
-    best_model.fit(X=pd.concat(X).values, y=pd.concat(y).values, sample_weight=sample_weight)
+    # Save the model hyperparameters and their losses as a csv
+    df_losses = pd.DataFrame({'MSE (Split 1)':losses[:,0], 'MSE (Split 2)':losses[:,1],
+                              'MSE (Split 3)':losses[:,2], 'MSE (mean)':mean_loss,
+                              'HP':hyperparameters})
+    df_losses.set_index('HP', inplace=True)
+    df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
-    
-    # # Plot the MSE history of the training
-    # plt.figure()
-    # plt.plot(history.history['loss'], label='loss')
-    # plt.plot(history.history['val_loss'], label='val_loss')
-    # # plt.yscale('log')
-    # plt.legend()
-    # plt.yscale('log')
-    # plt.xlabel('Epoch')
-    # plt.ylabel('MSE')
-    # plt.savefig(os.path.join('results',f'train_history_{name}.png'))
+    # Train the best model on all the data
+    history = best_model.fit(X=pd.concat(X).values, y=pd.concat(y).values, sample_weight=sample_weight)
+
+    if best_model.get_model_type() == 'nn':
+        # Save the training history
+        history_df = pd.DataFrame(history.history)
+        history_df.to_csv(os.path.join('results', f'training_history{mode}.csv'))
+                          
+        # Plot the MSE history of the training
+        plt.figure()
+        plt.plot(history.history['loss'], label='loss')
+        plt.plot(history.history['val_loss'], label='val_loss')
+        plt.legend()
+        plt.yscale('log')
+        plt.xlabel('Epoch')
+        plt.ylabel('MSE')
+        plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
 
     return best_model
 
@@ -150,9 +161,11 @@ class Model:
         if self.model_type == 'nn':
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
-            self.model.fit(X, y, epochs=100, validation_split=0.1, callbacks=[early_stopping], **kwargs)
+            history = self.model.fit(X, y, epochs=100, validation_split=0.1, callbacks=[early_stopping], **kwargs)
+            return history
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
+            return None
     
     def test(self, X, y):
         y_pred = self.model.predict(X)
