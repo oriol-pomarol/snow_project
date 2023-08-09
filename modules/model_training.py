@@ -1,8 +1,10 @@
 import pandas as pd
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import os
 import joblib
@@ -16,22 +18,17 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     # dfs_test_idx = [1,2,3,5,6,8,9]
     dfs_obs_train_idx = [0,4,7]
 
-    # Start a dictionary with models and their names
-    models = {}
-
     # Direct prediction
     X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model, model_name = model_selection(X=X, y=y)
-    models[model_name] = model
+    model_dp = model_selection(X=X, y=y)
 
     # # Error correction
     # X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
     #                 dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
     #                     for j in dfs_obs_train_idx]
     # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    # model, model_name = model_selection(X=X, y=y)
-    # models[model_name] = model
+    # model_ec = model_selection(X=X, y=y)
 
     # Data augmentation
     # Set the weight of the modelled values as a whole compared to the observations
@@ -47,11 +44,12 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     #     models[model_name] = model
 
     # Save the models
-    for model_name, model in models.items():
-        if 'rf' in model_name:
-            joblib.dump(model, os.path.join('results', 'models', f'{model_name}.joblib'))
-        elif 'nn' in model_name:
-            model.save(os.path.join('results', 'models', f'{model_name}.h5'))
+    for model, setup in zip([model_dp],['dir_pred']):
+        if 'rf' in str(model):
+            joblib.dump(model.model, os.path.join('results', 'models', f'{model.get_model_type()}_{setup}.joblib'))
+        elif 'nn' in str(model):
+            model.model.save(os.path.join('results', 'models', f'{model.get_model_type()}_{setup}.h5'))
+    return
 
 ####################################################################################
 # EXTRA FUNCTIONS AND CLASSES
@@ -69,8 +67,8 @@ def model_selection(X, y, sample_weight=None):
     learning_rate_vals = [1e-2, 1e-4]
 
     # Initialize a RF model for each combination of HP
-    for max_depth in max_depth_vals:
-        for max_samples in max_samples_vals:
+    for i, max_depth in enumerate(max_depth_vals):
+        for j, max_samples in enumerate(max_samples_vals):
             model = Model('rf')
             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
             model.create_model(X[0].shape[1])
@@ -85,12 +83,19 @@ def model_selection(X, y, sample_weight=None):
             models.append(model)
 
     # Perform leave-one-out validation between training stations
-    for i in range(len(X)):
-        for model in models:
+    losses = np.zeros((len(models), len(X)))
+    for m, model in enumerate(models):
+        print(f'Model {m+1} of {len(models)}.')
+        for i in range(len(X)):
+            print(f'Train/val split {i+1} of {len(X)}.')
             model.fit(X=pd.concat([X[j] for j in range(len(X)) if j!=i]).values, 
                       y=pd.concat([y[j] for j in range(len(X)) if j!=i]).values,
                       sample_weight=sample_weight)
+            loss = model.test(X=X[i].values, y=y[i].values)
+            losses[m,i] = loss
 
+    mean_loss = np.mean(losses, axis=1)
+    best_model = models[np.argmin(mean_loss)]
     
     # # Plot the MSE history of the training
     # plt.figure()
@@ -103,7 +108,7 @@ def model_selection(X, y, sample_weight=None):
     # plt.ylabel('MSE')
     # plt.savefig(os.path.join('results',f'train_history_{name}.png'))
 
-    return #best_model, best_model_name
+    return best_model
 
 class Model:
     def __init__(self, model_type):
@@ -139,6 +144,11 @@ class Model:
             self.model.fit(X, y, epochs=100, validation_split=0.1, callbacks=[early_stopping], **kwargs)
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
+    
+    def test(self, X, y):
+        y_pred = self.model.predict(X)
+        mse = mean_squared_error(y, y_pred)
+        return mse
 
     def get_model_type(self):
         return self.model_type
