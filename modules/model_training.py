@@ -1,12 +1,16 @@
 import pandas as pd
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 import os
 import joblib
 
 def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
+
+    # Set a random seed for tensorflow
+    tf.random.set_seed(10)
 
     # Choose what dfs can be used for testing and what only for observations
     # dfs_test_idx = [1,2,3,5,6,8,9]
@@ -21,13 +25,13 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
     model, model_name = model_selection(X=X, y=y)
     models[model_name] = model
 
-    # Error correction
-    X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
-                    dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
-                        for j in dfs_obs_train_idx]
-    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model, model_name = model_selection(X=X, y=y)
-    models[model_name] = model
+    # # Error correction
+    # X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
+    #                 dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
+    #                     for j in dfs_obs_train_idx]
+    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    # model, model_name = model_selection(X=X, y=y)
+    # models[model_name] = model
 
     # Data augmentation
     # Set the weight of the modelled values as a whole compared to the observations
@@ -69,6 +73,7 @@ def model_selection(X, y, sample_weight=None):
         for max_samples in max_samples_vals:
             model = Model('rf')
             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
+            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Initialize a NN model for each combination of HP
@@ -76,13 +81,14 @@ def model_selection(X, y, sample_weight=None):
         for learning_rate in learning_rate_vals:
             model = Model('nn')
             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Perform leave-one-out validation between training stations
     for i in range(len(X)):
         for model in models:
-            model.fit(pd.concat([X[j] for j in range(len(X)) if j!=i]), 
-                      pd.concat([y[j] for j in range(len(X)) if j!=i]),
+            model.fit(X=pd.concat([X[j] for j in range(len(X)) if j!=i]).values, 
+                      y=pd.concat([y[j] for j in range(len(X)) if j!=i]).values,
                       sample_weight=sample_weight)
 
     
@@ -124,16 +130,15 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'])
         elif self.model_type == 'rf':
-            self.model = RandomForestRegressor(**self.hyperparameters)
+            self.model = RandomForestRegressor(n_estimators=200, random_state=10, **self.hyperparameters)
 
-    def fit(self, X, y, **kwargs):
-        if not self.model:
-            raise ValueError("Please create the model first.")
-        
+    def fit(self, X, y, **kwargs):      
         if self.model_type == 'nn':
-            self.model.fit(X, y, epochs=100, **kwargs)
+            # Define early stopping callback
+            early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
+            self.model.fit(X, y, epochs=100, validation_split=0.1, callbacks=[early_stopping], **kwargs)
         elif self.model_type == 'rf':
-            self.model.fit(X, y, **kwargs)
+            self.model.fit(X, y.ravel(), **kwargs)
 
     def get_model_type(self):
         return self.model_type
@@ -141,15 +146,15 @@ class Model:
     def __str__(self):
         model_name = self.model_type
         for key, value in self.hyperparameters.items():
+            param_name = key[:2]  # Take the first two characters of the hyperparameter name
             if key == 'layers':
                 value_str = "_".join([f"{unit:03d}" for unit in value])
+                param_name = 'ly'
             elif key == 'learning_rate':
                 value_str = f"{value:.4f}"
-            elif isinstance(value, list):
-                value_str = "_".join(map(str, value))
+                param_name = 'lr'
             else:
                 value_str = str(value)
-            param_name = key[:2]  # Take the first two characters of the hyperparameter name
             model_name += f"_{param_name}{value_str}"
         
         return model_name
