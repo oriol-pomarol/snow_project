@@ -18,25 +18,31 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     dfs_obs_train_idx = [0,4,7]
 
     # Direct prediction
+    print('Starting direct prediction training...')
     X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
     model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
+    print('Direct prediction trained successfully...')
 
     # Error correction
+    print('Starting error correction training...')
     X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
                     dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
                         for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
     model_ec = model_selection(X=X, y=y, mode = 'err_corr')
+    print('Error correction trained successfully...')
 
     # Data augmentation
+    print('Starting data augmentation training...')
     weight_rel = 0.5 # weight of the modelled values (as a whole) compared to the observations
     X_obs = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
     X_aug = [dfs_meteo_agg_aug[j].loc[dfs_mod_delta_swe_aug[j].index] \
-             for j in [range(len(dfs_meteo_agg_aug))]]
+             for j in range(len(dfs_meteo_agg_aug))]
     y_obs = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
     model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=dfs_mod_delta_swe_aug, 
                                weight_rel=weight_rel, mode = 'data_aug')
+    print('Data augmentation trained successfully...')
 
     # Move any files in the models folder to an old_files folder
     source_folder = os.path.join('results', 'models')
@@ -82,9 +88,11 @@ def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
     hyperparameters = []
+
     for m, model in enumerate(models):
         hyperparameters.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
+
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
             model.create_model(X[0].shape[1])
@@ -92,9 +100,9 @@ def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
             if mode == 'data_aug':
                 X_obs_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
                 X_aug_train = pd.concat(X_aug)
-                X_train = pd.concat(X_obs_train, X_aug_train).values
+                X_train = pd.concat([X_obs_train, X_aug_train]).values
                 y_obs_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
-                y_train = pd.concat(y_obs_train, pd.concat(y_aug)).values
+                y_train = pd.concat([y_obs_train, pd.concat(y_aug)]).values
                 weight_aug = weight_rel * len(X_obs_train) / len(X_aug_train)
                 sample_weight = np.concatenate((np.ones(len(X_obs_train)), np.full(len(X_aug_train), weight_aug)))
 
@@ -163,7 +171,7 @@ class Model:
                 self.model.add(keras.layers.Dense(units, activation=activation))
             self.model.add(keras.layers.Dense(1, activation='linear'))
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
-                               loss='mean_squared_error', metrics=['mean_squared_error'])
+                               loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'rf':
             self.model = RandomForestRegressor(n_estimators=200, random_state=10, **self.hyperparameters)
 
