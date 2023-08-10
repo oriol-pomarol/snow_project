@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from keras.callbacks import EarlyStopping
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
@@ -99,19 +100,23 @@ def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
 
             if mode == 'data_aug':
                 X_obs_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+                y_obs_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+                X_obs_train, X_val, y_obs_train, y_val = train_test_split(X_obs_train, y_obs_train, test_size=0.2, random_state=10)
                 X_aug_train = pd.concat(X_aug)
                 X_train = pd.concat([X_obs_train, X_aug_train]).values
-                y_obs_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
                 y_train = pd.concat([y_obs_train, pd.concat(y_aug)]).values
                 weight_aug = weight_rel * len(X_obs_train) / len(X_aug_train)
                 sample_weight = np.concatenate((np.ones(len(X_obs_train)), np.full(len(X_aug_train), weight_aug)))
+                
+
 
             else:
                 X_train = pd.concat([X[j] for j in range(len(X)) if j!=i]).values
                 y_train = pd.concat([y[j] for j in range(len(X)) if j!=i]).values
+                X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
                 sample_weight = None
 
-            model.fit(X=X_train, y=y_train, sample_weight=sample_weight)
+            model.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val, sample_weight=sample_weight)
             loss = model.test(X=X[i].values, y=y[i].values)
             losses[m,i] = loss
 
@@ -127,9 +132,11 @@ def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
     # Train the best model on all the data
+    X_train, X_val, y_train, y_val = train_test_split(pd.concat(X+X_aug).values, pd.concat(y+y_aug).values,
+                                                      test_size=0.2, random_state=10)
     if mode == 'data_aug':
         sample_weight = np.concatenate((np.ones(len(pd.concat(X))), np.full(len(X_aug_train), weight_aug)))
-    history = best_model.fit(X=pd.concat(X+X_aug).values, y=pd.concat(y+y_aug).values, sample_weight=sample_weight)
+    history = best_model.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val, sample_weight=sample_weight)
 
     if best_model.get_model_type() == 'nn':
         # Save the training history
@@ -175,11 +182,11 @@ class Model:
         elif self.model_type == 'rf':
             self.model = RandomForestRegressor(n_estimators=200, random_state=10, **self.hyperparameters)
 
-    def fit(self, X, y, **kwargs):      
+    def fit(self, X, y, X_val, y_val, **kwargs):      
         if self.model_type == 'nn':
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
-            history = self.model.fit(X, y, epochs=100, validation_split=0.2, callbacks=[early_stopping], **kwargs)
+            history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
             return history
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
