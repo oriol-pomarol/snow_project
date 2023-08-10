@@ -30,18 +30,20 @@ print('Successfully loaded the data...')
 
 # Preprocess data
 print('Pre-processing the data...')
-dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe_all, dfs_mod_delta_swe_filt = \
+dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt = \
     data_preprocessing(dfs_obs, dfs_met, dfs_mod, locations)
 print('Successfully pre-processed the data...')
 
 # Train the models with the different setups
 print('Training models...')
-model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe)
+model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe,
+               [dfs_meteo_agg[i] for i in [1,2,3,5,6,8]], 
+               [dfs_mod_delta_swe_filt[i] for i in [1,2,3,5,6,8]])
 print('Successfully trained models...')
 
 # Test the models by use of the forward simulation
 print('Performing forward simulation...')
-forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, station_year='rme_2002')
+forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe, station_year='rme_2002')
 print('Successfully performed forward simulation...')
 
 # Print execution time

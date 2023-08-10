@@ -38,7 +38,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         dfs_obs_delta_swe.append(df_delta_swe)
 
     # Define a list to save the ΔSWE measurements
-    dfs_mod_delta_swe_all = []
+    dfs_mod_delta_swe = []
     dfs_mod_delta_swe_filt = []
 
     # Iterate over each DataFrame in dfs_model
@@ -55,7 +55,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         df_delta_swe.set_index('time', inplace=True)
 
         # Append delta_swe to list and print the amount of measurements per station
-        dfs_mod_delta_swe_all.append(df_delta_swe)
+        dfs_mod_delta_swe.append(df_delta_swe)
         dfs_mod_delta_swe_filt.append(df_delta_swe[enough_swe])
 
 
@@ -132,7 +132,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         # Add the DataFrame to the list
         dfs_meteo_agg.append(df_agg)
 
-    return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe_all, dfs_mod_delta_swe_filt
+    return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
 
 ####################################################################################
 # EXTRA FUNCTIONS

@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 import os
 import joblib
 
-def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
+def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
 
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
     # Choose what dfs can be used for testing and what only for observations
-    # dfs_test_idx = [1,2,3,5,6,8,9]
     dfs_obs_train_idx = [0,4,7]
 
     # Direct prediction
@@ -25,30 +24,28 @@ def model_training(dfs_meteo_agg, dfs_mod, dfs_obs_delta_swe):
 
     # Error correction
     X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
-                    dfs_mod[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
+                    dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
                         for j in dfs_obs_train_idx]
     y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
     model_ec = model_selection(X=X, y=y, mode = 'err_corr')
 
     # Data augmentation
     # Set the weight of the modelled values as a whole compared to the observations
-    # weight_mod = 0.5
-    # for i in dfs_test_idx:
-    #     X_obs = pd.concat([dfs_meteo_agg[j].loc[dfs_obs[j].index] for j in dfs_obs_train_idx])
-    #     X_mod = pd.concat([dfs_meteo_agg[j].loc[dfs_mod[j].index] for j in dfs_test_idx if j!=i])
-    #     y = pd.concat([pd.concat([dfs_obs[j] for j in dfs_obs_train_idx]),
-    #                   pd.concat([dfs_mod[j] for j in dfs_test_idx if j!=i])])
-    #     weight_train_mod = weight_mod * len(X_obs) / len(X_mod)
-    #     sample_weight = np.concatenate((np.ones(len(X_obs)), np.full(len(X_mod), weight_train_mod)))
-    #     train_model(X=pd.concat([X_obs,X_mod]), y=y, sample_weight=sample_weight, name=f'data_aug_{i}')
-    #     models[model_name] = model
+    weight_mod = 0.5
+    X_obs = pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx])
+    X_aug = pd.concat([dfs_meteo_agg_aug[j].loc[dfs_mod_delta_swe_aug[j].index] for j in len(dfs_meteo_agg_aug)])
+    y = pd.concat([pd.concat([dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]),
+                   pd.concat(dfs_mod_delta_swe_aug)])
+    weight_train_mod = weight_mod * len(X_obs) / len(X_aug)
+    sample_weight = np.concatenate((np.ones(len(X_obs)), np.full(len(X_aug), weight_train_mod)))
+    model_da = model_selection(X=pd.concat([X_obs,X_aug]), y=y, sample_weight=sample_weight, mode = 'data_aug')
 
     # Move any files in the models folder to an old_files folder
     source_folder = os.path.join('results', 'models')
     move_old_files(source_folder)
 
     # Save the models
-    for model, mode in zip([model_dp, model_ec],['dir_pred', 'err_corr']):
+    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif 'nn' in str(model):
