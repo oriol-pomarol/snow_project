@@ -30,15 +30,13 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     model_ec = model_selection(X=X, y=y, mode = 'err_corr')
 
     # Data augmentation
-    # Set the weight of the modelled values as a whole compared to the observations
-    weight_mod = 0.5
-    X_obs = pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx])
-    X_aug = pd.concat([dfs_meteo_agg_aug[j].loc[dfs_mod_delta_swe_aug[j].index] for j in len(dfs_meteo_agg_aug)])
-    y = pd.concat([pd.concat([dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]),
-                   pd.concat(dfs_mod_delta_swe_aug)])
-    weight_train_mod = weight_mod * len(X_obs) / len(X_aug)
-    sample_weight = np.concatenate((np.ones(len(X_obs)), np.full(len(X_aug), weight_train_mod)))
-    model_da = model_selection(X=pd.concat([X_obs,X_aug]), y=y, sample_weight=sample_weight, mode = 'data_aug')
+    weight_rel = 0.5 # weight of the modelled values (as a whole) compared to the observations
+    X_obs = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
+    X_aug = [dfs_meteo_agg_aug[j].loc[dfs_mod_delta_swe_aug[j].index] \
+             for j in [range(len(dfs_meteo_agg_aug))]]
+    y_obs = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=dfs_mod_delta_swe_aug, 
+                               weight_rel=weight_rel, mode = 'data_aug')
 
     # Move any files in the models folder to an old_files folder
     source_folder = os.path.join('results', 'models')
@@ -56,7 +54,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, sample_weight=None, mode=''):
+def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
 
     # Initialize the models in a list
     models = []
@@ -90,9 +88,22 @@ def model_selection(X, y, sample_weight=None, mode=''):
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
             model.create_model(X[0].shape[1])
-            model.fit(X=pd.concat([X[j] for j in range(len(X)) if j!=i]).values, 
-                      y=pd.concat([y[j] for j in range(len(X)) if j!=i]).values,
-                      sample_weight=sample_weight) # Need to change sample weight to the right subset
+
+            if mode == 'data_aug':
+                X_obs_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+                X_aug_train = pd.concat(X_aug)
+                X_train = pd.concat(X_obs_train, X_aug_train).values
+                y_obs_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+                y_train = pd.concat(y_obs_train, pd.concat(y_aug)).values
+                weight_aug = weight_rel * len(X_obs_train) / len(X_aug_train)
+                sample_weight = np.concatenate((np.ones(len(X_obs_train)), np.full(len(X_aug_train), weight_aug)))
+
+            else:
+                X_train = pd.concat([X[j] for j in range(len(X)) if j!=i]).values
+                y_train = pd.concat([y[j] for j in range(len(X)) if j!=i]).values
+                sample_weight = None
+
+            model.fit(X=X_train, y=y_train, sample_weight=sample_weight)
             loss = model.test(X=X[i].values, y=y[i].values)
             losses[m,i] = loss
 
@@ -108,7 +119,9 @@ def model_selection(X, y, sample_weight=None, mode=''):
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
     # Train the best model on all the data
-    history = best_model.fit(X=pd.concat(X).values, y=pd.concat(y).values, sample_weight=sample_weight)
+    if mode == 'data_aug':
+        sample_weight = np.concatenate((np.ones(len(pd.concat(X))), np.full(len(X_aug_train), weight_aug)))
+    history = best_model.fit(X=pd.concat(X+X_aug).values, y=pd.concat(y+y_aug).values, sample_weight=sample_weight)
 
     if best_model.get_model_type() == 'nn':
         # Save the training history
