@@ -67,7 +67,7 @@ def model_selection(X, y, sample_weight=None, mode=''):
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
     max_samples_vals = [None, 0.5, 0.8]
-    layers_vals = [[32], [128], [64,64], [32, 32, 32], [128, 128, 128]]
+    layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
     learning_rate_vals = [1e-2, 1e-4]
 
     # Initialize a RF model for each combination of HP
@@ -116,7 +116,7 @@ def model_selection(X, y, sample_weight=None, mode=''):
     if best_model.get_model_type() == 'nn':
         # Save the training history
         history_df = pd.DataFrame(history.history)
-        history_df.to_csv(os.path.join('results', f'training_history{mode}.csv'))
+        history_df.to_csv(os.path.join('results', f'train_history_{mode}.csv'))
                           
         # Plot the MSE history of the training
         plt.figure()
@@ -160,8 +160,8 @@ class Model:
     def fit(self, X, y, **kwargs):      
         if self.model_type == 'nn':
             # Define early stopping callback
-            early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
-            history = self.model.fit(X, y, epochs=100, validation_split=0.1, callbacks=[early_stopping], **kwargs)
+            early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
+            history = self.model.fit(X, y, epochs=100, validation_split=0.2, callbacks=[early_stopping], **kwargs)
             return history
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
