@@ -8,26 +8,37 @@ import os
 import pickle
 
 def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, 
-                       station_year=None, load_data=False):
+                       station_years=[], load_data=False):
     # Store the station names for which forward simulation is performed
     station_names = ['cdp', 'oas', 'obs', 'ojp', 'rme', 'sap', 'snb', 'sod', 'swa', 'wfj']
     n_stations = len(station_names)
 
     # Determine what modes to run
-    modes = ['dir_pred', 'err_corr']
+    modes = ['dir_pred', 'err_corr', 'data_aug']
 
     if not load_data:
         # Create an empty list for the predictions and a df for the MSE
         pred_list = []
         df_mse = pd.DataFrame(columns=modes)
+        mod_mse = []
 
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
             pred_swe_arr, mse_swe_arr = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
                                                             dfs_mod_delta_swe_all[i], modes)
+            
+            # Append the modelled data MSE to a list
+            pred_obs = dfs_mod[i].loc[dfs_obs[i].index].values
+            mse_mod_swe = mean_squared_error(dfs_obs[i].values, pred_obs)
+            mod_mse.append(mse_mod_swe)
+        
+            # Append the predictions and mse to the list/df
             pred_list.append(pred_swe_arr)
             df_mse.loc[i] = list(mse_swe_arr)
+
+        # Add the station names as indices, and the modelled data
         df_mse.index = station_names
+        df_mse['modelled'] = mod_mse
 
         # Save the MSE as csv and the predictions with pickle
         df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
@@ -38,21 +49,24 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
             pred_list = pickle.load(file)
 
     # Plot the results
-    fig, axs = plt.subplots(5, 2, figsize=(15, 8))
-    axs = axs.flatten()
-    for i in range(len(station_names)):
-        ax = axs[i]
-        for j, mode in enumerate(modes):
-            ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=mode)
-        ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
-        ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('SWE')
-    ax.legend()
-    plt.savefig(os.path.join('results', 'fwd_sim.png'))
+    if 'all' in station_years:
+        fig, axs = plt.subplots(5, 2, figsize=(15, 8))
+        axs = axs.flatten()
+        for i in range(len(station_names)):
+            ax = axs[i]
+            for j, mode in enumerate(modes):
+                ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=mode)
+            ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
+            ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
+        ax.set_xlabel('Date')
+        ax.set_ylabel('SWE')
+        ax.legend()
+        plt.savefig(os.path.join('results', 'fwd_sim.png'))
 
     
-    if station_year:
+    for station_year in station_years:
+        if station_year == 'all':
+            next
         i = station_names.index(station_year[:3])
         year = int(station_year[4:])
         # Plot the results for the year and station given
@@ -78,7 +92,7 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
     # Initialize a vector for the predicted and observed SWE
     pred_swe_arr = np.zeros((len(modes), len(meteo_agg)))
-    mse_swe_arr = np.zeros(len(modes))
+    mse_swe_arr = np.zeros(len(modes)+1)
 
     # Make the forward simulation
     for i, mode in enumerate(modes):
@@ -101,6 +115,8 @@ def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
             fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
 
         for j in range(1,len(meteo_agg)):
+            if i % (len(meteo_agg) // 5) == 0:
+                print(f"Progress: {i * 100 / len(meteo_agg):.0f}% completed.")
             if '.h5' in model_name:
                 pred_y = model.predict(fwd_X.values[[j-1]], verbose=0)
             else:
