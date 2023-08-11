@@ -36,13 +36,11 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
 
     # Data augmentation
     print('Starting data augmentation training...')
-    weight_rel = 0.5 # weight of the modelled values (as a whole) compared to the observations
     X_obs = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
     X_aug = [dfs_meteo_agg_aug[j].loc[dfs_mod_delta_swe_aug[j].index] \
              for j in range(len(dfs_meteo_agg_aug))]
     y_obs = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=dfs_mod_delta_swe_aug, 
-                               weight_rel=weight_rel, mode = 'data_aug')
+    model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=dfs_mod_delta_swe_aug, mode = 'data_aug')
     print('Data augmentation trained successfully...')
 
     # Move any files in the models folder to an old_files folder
@@ -61,30 +59,46 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
-
+def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     # Initialize the models in a list
     models = []
+    weight_rel = 0.5 # weight of the modelled values (as a whole) compared to the observations
 
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
     max_samples_vals = [None, 0.5, 0.8]
     layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
     learning_rate_vals = [1e-2, 1e-4]
+    rel_weight_vals = [1e-3, 1, 1e3]
 
     # Initialize a RF model for each combination of HP
     for i, max_depth in enumerate(max_depth_vals):
         for j, max_samples in enumerate(max_samples_vals):
-            model = Model('rf')
-            model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
-            models.append(model)
+            if mode == 'data_aug':
+                for k, rel_weight in enumerate(rel_weight_vals):
+                    model = Model('rf')
+                    model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
+                                              rel_weight=rel_weight)
+                    models.append(model)
+            else:
+                model = Model('rf')
+                model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
+                models.append(model)
 
     # Initialize a NN model for each combination of HP
     for layers in layers_vals:
         for learning_rate in learning_rate_vals:
-            model = Model('nn')
-            model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            models.append(model)
+            if mode == 'data_aug':
+                for k, rel_weight in enumerate(rel_weight_vals):
+                    model = Model('nn')
+                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
+                                              rel_weight=rel_weight)
+                    models.append(model)
+            else:
+                model = Model('nn')
+                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+                models.append(model)
+            
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
@@ -105,11 +119,9 @@ def model_selection(X, y, X_aug=[], y_aug=[], weight_rel=None, mode=''):
                 X_aug_train = pd.concat(X_aug)
                 X_train = pd.concat([X_obs_train, X_aug_train]).values
                 y_train = pd.concat([y_obs_train, pd.concat(y_aug)]).values
-                weight_aug = weight_rel * len(X_obs_train) / len(X_aug_train)
+                weight_aug = model.hyperparameters.get('rel_weight', 1) * len(X_obs_train) / len(X_aug_train)
                 sample_weight = np.concatenate((np.ones(len(X_obs_train)), np.full(len(X_aug_train), weight_aug)))
                 
-
-
             else:
                 X_train = pd.concat([X[j] for j in range(len(X)) if j!=i]).values
                 y_train = pd.concat([y[j] for j in range(len(X)) if j!=i]).values
