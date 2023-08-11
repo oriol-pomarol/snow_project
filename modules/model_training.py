@@ -192,7 +192,9 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'rf':
-            self.model = RandomForestRegressor(n_estimators=200, random_state=10, **self.hyperparameters)
+            self.model = RandomForestRegressor(n_estimators=200, random_state=10,
+                                               max_depth=self.hyperparameters.get('max_depth', None),
+                                               max_samples=self.hyperparameters.get('max_samples', None))
 
     def fit(self, X, y, X_val, y_val, **kwargs):      
         if self.model_type == 'nn':
