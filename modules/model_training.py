@@ -18,21 +18,21 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     # Choose what dfs can be used for testing and what only for observations
     dfs_obs_train_idx = [0,4,7]
 
-    # Direct prediction
-    print('Starting direct prediction training...')
-    X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
-    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
-    print('Direct prediction trained successfully...')
+    # # Direct prediction
+    # print('Starting direct prediction training...')
+    # X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
+    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    # model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
+    # print('Direct prediction trained successfully...')
 
-    # Error correction
-    print('Starting error correction training...')
-    X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
-                    dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
-                        for j in dfs_obs_train_idx]
-    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    model_ec = model_selection(X=X, y=y, mode = 'err_corr')
-    print('Error correction trained successfully...')
+    # # Error correction
+    # print('Starting error correction training...')
+    # X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
+    #                 dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
+    #                     for j in dfs_obs_train_idx]
+    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    # model_ec = model_selection(X=X, y=y, mode = 'err_corr')
+    # print('Error correction trained successfully...')
 
     # Data augmentation
     print('Starting data augmentation training...')
@@ -48,7 +48,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     move_old_files(source_folder)
 
     # Save the models
-    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
+    for model, mode in zip([model_da],['data_aug']): #model_dp, model_ec,     'dir_pred', 'err_corr',
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif 'nn' in str(model):
@@ -62,7 +62,6 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
 def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     # Initialize the models in a list
     models = []
-    weight_rel = 0.5 # weight of the modelled values (as a whole) compared to the observations
 
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
@@ -111,24 +110,22 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
             model.create_model(X[0].shape[1])
-
+            X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+            y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
             if mode == 'data_aug':
-                X_obs_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
-                y_obs_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
-                X_obs_train, X_val, y_obs_train, y_val = train_test_split(X_obs_train, y_obs_train, test_size=0.2, random_state=10)
-                X_aug_train = pd.concat(X_aug)
-                X_train = pd.concat([X_obs_train, X_aug_train]).values
-                y_train = pd.concat([y_obs_train, pd.concat(y_aug)]).values
-                weight_aug = model.hyperparameters.get('rel_weight', 1) * len(X_obs_train) / len(X_aug_train)
-                sample_weight = np.concatenate((np.ones(len(X_obs_train)), np.full(len(X_aug_train), weight_aug)))
+                len_X_obs_train = len(X_train)
+                len_X_aug_train = len(pd.concat(X_aug))
+                X_train = pd.concat([X_train, pd.concat(X_aug)])
+                y_train = pd.concat([y_train, pd.concat(y_aug)])
+                weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+                sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
                 
             else:
-                X_train = pd.concat([X[j] for j in range(len(X)) if j!=i]).values
-                y_train = pd.concat([y[j] for j in range(len(X)) if j!=i]).values
-                X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
                 sample_weight = None
 
-            model.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val, sample_weight=sample_weight)
+            model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+                      y_val=y_val.values, sample_weight=sample_weight)
             loss = model.test(X=X[i].values, y=y[i].values)
             losses[m,i] = loss
 
@@ -144,11 +141,20 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
     # Train the best model on all the data
-    X_train, X_val, y_train, y_val = train_test_split(pd.concat(X+X_aug).values, pd.concat(y+y_aug).values,
+    X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
                                                       test_size=0.2, random_state=10)
     if mode == 'data_aug':
-        sample_weight = np.concatenate((np.ones(len(pd.concat(X))), np.full(len(X_aug_train), weight_aug)))
-    history = best_model.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val, sample_weight=sample_weight)
+        len_X_obs_train = len(X_train)
+        len_X_aug_train = len(pd.concat(X_aug))
+        X_train = pd.concat([X_train, pd.concat(X_aug)])
+        y_train = pd.concat([y_train, pd.concat(y_aug)])
+        weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+        sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+    else:
+        sample_weight = None
+
+    history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+                             y_val=y_val.values, sample_weight=sample_weight)
 
     if best_model.get_model_type() == 'nn':
         # Save the training history
