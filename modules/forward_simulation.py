@@ -98,10 +98,14 @@ def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
     for i, mode in enumerate(modes):
         # Load the trained model
         files_in_folder = os.listdir(os.path.join('results', 'models'))
+        model_name = None
         for file in files_in_folder:
             if mode in file:
                 model_name = file
                 break
+        if model_name == None:
+            print(f'Error: No model available for {mode}.')
+            continue
         
         if '.joblib' in model_name:
             model = joblib.load(os.path.join('results', 'models', model_name))
