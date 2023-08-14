@@ -48,7 +48,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     move_old_files(source_folder)
 
     # Save the models
-    for model, mode in zip([model_da],['data_aug']): #model_dp, model_ec,     'dir_pred', 'err_corr',
+    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif 'nn' in str(model):
