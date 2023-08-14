@@ -18,21 +18,21 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     # Choose what dfs can be used for testing and what only for observations
     dfs_obs_train_idx = [0,4,7]
 
-    # # Direct prediction
-    # print('Starting direct prediction training...')
-    # X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
-    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    # model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
-    # print('Direct prediction trained successfully...')
+    # Direct prediction
+    print('Starting direct prediction training...')
+    X = [dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index] for j in dfs_obs_train_idx]
+    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    model_dp = model_selection(X=X, y=y, mode = 'dir_pred')
+    print('Direct prediction trained successfully...')
 
-    # # Error correction
-    # print('Starting error correction training...')
-    # X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
-    #                 dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
-    #                     for j in dfs_obs_train_idx]
-    # y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
-    # model_ec = model_selection(X=X, y=y, mode = 'err_corr')
-    # print('Error correction trained successfully...')
+    # Error correction
+    print('Starting error correction training...')
+    X = [pd.concat([dfs_meteo_agg[j].loc[dfs_obs_delta_swe[j].index],
+                    dfs_mod_delta_swe[j].loc[dfs_obs_delta_swe[j].index]], axis=1) \
+                        for j in dfs_obs_train_idx]
+    y = [dfs_obs_delta_swe[j] for j in dfs_obs_train_idx]
+    model_ec = model_selection(X=X, y=y, mode = 'err_corr')
+    print('Error correction trained successfully...')
 
     # Data augmentation
     print('Starting data augmentation training...')
