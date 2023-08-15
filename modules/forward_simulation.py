@@ -48,40 +48,37 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
         with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'rb') as file:
             pred_list = pickle.load(file)
 
-    # Plot the results
-    if 'all' in station_years:
-        fig, axs = plt.subplots(5, 2, figsize=(15, 8))
-        axs = axs.flatten()
-        for i in range(len(station_names)):
-            ax = axs[i]
-            for j, mode in enumerate(modes):
-                ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=mode)
-            ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
-            ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
-        ax.set_xlabel('Date')
-        ax.set_ylabel('SWE')
-        ax.legend()
-        plt.savefig(os.path.join('results', 'fwd_sim.png'))
-
-    
+    # Plot the results      
     for station_year in station_years:
         if station_year == 'all':
-            next
-        i = station_names.index(station_year[:3])
-        year = int(station_year[4:])
-        # Plot the results for the year and station given
-        fig, ax = plt.subplots(1,1, figsize=(15, 8))
-        for j, mode in enumerate(modes):
-            mask = mask_measurements_by_year(dfs_meteo_agg[i], year)
-            ax.plot(dfs_meteo_agg[i].index[mask], pred_list[i][j][mask], label=mode)
-        mask = mask_measurements_by_year(dfs_obs[i], year)
-        ax.plot(dfs_obs[i].index[mask], dfs_obs[i].values.ravel()[mask], label='Observed SWE')
-        mask = mask_measurements_by_year(dfs_mod[i], year)
-        ax.plot(dfs_mod[i].index[mask], dfs_mod[i].values.ravel()[mask], label='Modelled SWE')
-        ax.set_xlabel('Date')
-        ax.set_ylabel('SWE')
-        ax.legend()
-        plt.savefig(os.path.join('results', f'fwd_sim_{station_year}.png'))
+            fig, axs = plt.subplots(5, 2, figsize=(15, 8))
+            axs = axs.flatten()
+            for i in range(len(station_names)):
+                ax = axs[i]
+                for j, mode in enumerate(modes):
+                    ax.plot(dfs_meteo_agg[i].index, pred_list[i][j], label=mode)
+                ax.plot(dfs_obs[i].index, dfs_obs[i].values, label='Observed SWE')
+                ax.plot(dfs_mod[i].index, dfs_mod[i].values, label='Modelled SWE')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('SWE')
+            ax.legend()
+            plt.savefig(os.path.join('results', 'fwd_sim_all.png'))
+        else:
+            i = station_names.index(station_year[:3])
+            year = int(station_year[4:])
+            # Plot the results for the year and station given
+            fig, ax = plt.subplots(1,1, figsize=(15, 8))
+            for j, mode in enumerate(modes):
+                mask = mask_measurements_by_year(dfs_meteo_agg[i], year)
+                ax.plot(dfs_meteo_agg[i].index[mask], pred_list[i][j][mask], label=mode)
+            mask = mask_measurements_by_year(dfs_obs[i], year)
+            ax.plot(dfs_obs[i].index[mask], dfs_obs[i].values.ravel()[mask], label='Observed SWE')
+            mask = mask_measurements_by_year(dfs_mod[i], year)
+            ax.plot(dfs_mod[i].index[mask], dfs_mod[i].values.ravel()[mask], label='Modelled SWE')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('SWE')
+            ax.legend()
+            plt.savefig(os.path.join('results', f'fwd_sim_{station_year}.png'))
 
     return
 
