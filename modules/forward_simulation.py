@@ -24,7 +24,7 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
-            pred_swe_arr, mse_swe_arr = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
+            pred_swe_arr, mse_swe_list = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
                                                             dfs_mod_delta_swe_all[i], modes)
             
             # Append the modelled data MSE to a list
@@ -34,7 +34,7 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
         
             # Append the predictions and mse to the list/df
             pred_list.append(pred_swe_arr)
-            df_mse.loc[i] = list(mse_swe_arr)
+            df_mse.loc[i] = mse_swe_list
 
         # Add the station names as indices, and the modelled data
         df_mse.index = station_names
@@ -89,13 +89,14 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 # EXTRA FUNCTIONS
 ####################################################################################
 
-def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
+def make_predictions(obs, meteo_agg, mod_delta_swe_all, modes):
     # Initialize a vector for the predicted and observed SWE
     pred_swe_arr = np.zeros((len(modes), len(meteo_agg)))
-    mse_swe_arr = np.zeros(len(modes)+1)
+    mse_swe_list = []
 
     # Make the forward simulation
     for i, mode in enumerate(modes):
+        print(f"Simulating {mode} mode.")
         # Load the trained model
         files_in_folder = os.listdir(os.path.join('results', 'models'))
         model_name = None
@@ -119,8 +120,8 @@ def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
             fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
 
         for j in range(1,len(meteo_agg)):
-            if i % (len(meteo_agg) // 5) == 0:
-                print(f"Progress: {i * 100 / len(meteo_agg):.0f}% completed.")
+            if j % (len(meteo_agg) // 5) == 0:
+                print(f"Progress: {j * 100 / len(meteo_agg):.0f}% completed.")
             if '.h5' in model_name:
                 pred_y = model.predict(fwd_X.values[[j-1]], verbose=0)
             else:
@@ -130,9 +131,9 @@ def make_predictions(obs, mod, meteo_agg, mod_delta_swe_all, modes):
         # Find the MSE and store it in the list
         pred_obs = pred_swe_arr[i][np.isin(fwd_X.index, obs.index)]
         mse_swe = mean_squared_error(obs.values, pred_obs)
-        mse_swe_arr[i] = mse_swe
+        mse_swe_list.append(mse_swe)
 
-    return pred_swe_arr, mse_swe_arr
+    return pred_swe_arr, mse_swe_list
 
 def mask_measurements_by_year(df, year):
     start_date = pd.to_datetime(f'{year}-07-01')
