@@ -24,8 +24,8 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
-            pred_swe_arr, mse_swe_list = make_predictions(dfs_obs[i], dfs_mod[i], dfs_meteo_agg[i], 
-                                                            dfs_mod_delta_swe_all[i], modes)
+            pred_swe_arr, mse_swe_list = make_predictions(dfs_obs[i], dfs_meteo_agg[i],
+                                                          dfs_mod_delta_swe_all[i], modes)
             
             # Append the modelled data MSE to a list
             pred_obs = dfs_mod[i].loc[dfs_obs[i].index].values
