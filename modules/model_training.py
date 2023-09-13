@@ -6,6 +6,7 @@ from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
+from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
 import os
 import joblib
@@ -43,133 +44,180 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=dfs_mod_delta_swe_aug, mode = 'data_aug')
     print('Data augmentation trained successfully...')
 
-    # Move any files in the models folder to an old_files folder
-    source_folder = os.path.join('results', 'models')
-    move_old_files(source_folder)
+    # # Move any files in the models folder to an old_files folder
+    # source_folder = os.path.join('results', 'models')
+    # move_old_files(source_folder)
 
-    # Save the models
-    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
-        if 'rf' in str(model):
-            joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
-        elif 'nn' in str(model):
-            model.model.save(os.path.join(source_folder, f'{mode}.h5'))
-    return
+    # # Save the models
+    # for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
+    #     if 'rf' in str(model):
+    #         joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
+    #     elif 'nn' in str(model):
+    #         model.model.save(os.path.join(source_folder, f'{mode}.h5'))
+    # return
 
 ####################################################################################
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
 def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
-    # Initialize the models in a list
-    models = []
+    # # Initialize the models in a list
+    # models = []
 
-    # Set the possible values for each hyperparameter
-    max_depth_vals = [None, 10, 20]
-    max_samples_vals = [None, 0.5, 0.8]
-    layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
-    learning_rate_vals = [1e-2, 1e-4]
-    rel_weight_vals = [1e-3, 1, 1e3]
+    # # Set the possible values for each hyperparameter
+    # max_depth_vals = [None, 10, 20]
+    # max_samples_vals = [None, 0.5, 0.8]
+    # layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
+    # learning_rate_vals = [1e-2, 1e-4]
+    # rel_weight_vals = [1e-3, 1, 1e3]
 
-    # Initialize a RF model for each combination of HP
-    for i, max_depth in enumerate(max_depth_vals):
-        for j, max_samples in enumerate(max_samples_vals):
-            if mode == 'data_aug':
-                for k, rel_weight in enumerate(rel_weight_vals):
-                    model = Model('rf')
-                    model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
-                                              rel_weight=rel_weight)
-                    models.append(model)
-            else:
-                model = Model('rf')
-                model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
-                models.append(model)
+    # # Initialize a RF model for each combination of HP
+    # for i, max_depth in enumerate(max_depth_vals):
+    #     for j, max_samples in enumerate(max_samples_vals):
+    #         if mode == 'data_aug':
+    #             for k, rel_weight in enumerate(rel_weight_vals):
+    #                 model = Model('rf')
+    #                 model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
+    #                                           rel_weight=rel_weight)
+    #                 models.append(model)
+    #         else:
+    #             model = Model('rf')
+    #             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
+    #             models.append(model)
 
-    # Initialize a NN model for each combination of HP
-    for layers in layers_vals:
-        for learning_rate in learning_rate_vals:
-            if mode == 'data_aug':
-                for k, rel_weight in enumerate(rel_weight_vals):
-                    model = Model('nn')
-                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
-                                              rel_weight=rel_weight)
-                    models.append(model)
-            else:
-                model = Model('nn')
-                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-                models.append(model)
+    # # Initialize a NN model for each combination of HP
+    # for layers in layers_vals:
+    #     for learning_rate in learning_rate_vals:
+    #         if mode == 'data_aug':
+    #             for k, rel_weight in enumerate(rel_weight_vals):
+    #                 model = Model('nn')
+    #                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
+    #                                           rel_weight=rel_weight)
+    #                 models.append(model)
+    #         else:
+    #             model = Model('nn')
+    #             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+    #             models.append(model)
             
 
-    # Perform leave-one-out validation between training stations
-    losses = np.zeros((len(models), len(X)))
-    hyperparameters = []
+    # # Perform leave-one-out validation between training stations
+    # losses = np.zeros((len(models), len(X)))
+    # hyperparameters = []
 
-    for m, model in enumerate(models):
-        hyperparameters.append(str(model))
-        print(f'Model {m+1} of {len(models)}.')
+    # for m, model in enumerate(models):
+    #     hyperparameters.append(str(model))
+    #     print(f'Model {m+1} of {len(models)}.')
 
-        for i in range(len(X)):
-            print(f'Train/val split {i+1} of {len(X)}.')
-            model.create_model(X[0].shape[1])
-            X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
-            y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
-            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
-            if mode == 'data_aug':
-                len_X_obs_train = len(X_train)
-                len_X_aug_train = len(pd.concat(X_aug))
-                X_train = pd.concat([X_train, pd.concat(X_aug)])
-                y_train = pd.concat([y_train, pd.concat(y_aug)])
-                weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
-                sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+    #     for i in range(len(X)):
+    #         print(f'Train/val split {i+1} of {len(X)}.')
+    #         model.create_model(X[0].shape[1])
+    #         X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+    #         y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+    #         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
+    #         if mode == 'data_aug':
+    #             len_X_obs_train = len(X_train)
+    #             len_X_aug_train = len(pd.concat(X_aug))
+    #             X_train = pd.concat([X_train, pd.concat(X_aug)])
+    #             y_train = pd.concat([y_train, pd.concat(y_aug)])
+    #             weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+    #             sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
                 
-            else:
-                sample_weight = None
+    #         else:
+    #             sample_weight = None
 
-            model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                      y_val=y_val.values, sample_weight=sample_weight)
-            loss = model.test(X=X[i].values, y=y[i].values)
-            losses[m,i] = loss
+    #         model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+    #                   y_val=y_val.values, sample_weight=sample_weight)
+    #         loss = model.test(X=X[i].values, y=y[i].values)
+    #         losses[m,i] = loss
 
-    # Select the best model
-    mean_loss = np.mean(losses, axis=1)
-    best_model = models[np.argmin(mean_loss)]
+    # # Select the best model
+    # mean_loss = np.mean(losses, axis=1)
+    # best_model = models[np.argmin(mean_loss)]
 
-    # Save the model hyperparameters and their losses as a csv
-    df_losses = pd.DataFrame({'MSE (Split 1)':losses[:,0], 'MSE (Split 2)':losses[:,1],
-                              'MSE (Split 3)':losses[:,2], 'MSE (mean)':mean_loss,
-                              'HP':hyperparameters})
-    df_losses.set_index('HP', inplace=True)
-    df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
+    # # Save the model hyperparameters and their losses as a csv
+    # df_losses = pd.DataFrame({'MSE (Split 1)':losses[:,0], 'MSE (Split 2)':losses[:,1],
+    #                           'MSE (Split 3)':losses[:,2], 'MSE (mean)':mean_loss,
+    #                           'HP':hyperparameters})
+    # df_losses.set_index('HP', inplace=True)
+    # df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
-    # Train the best model on all the data
+    # # Train the best model on all the data
     X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
                                                       test_size=0.2, random_state=10)
-    if mode == 'data_aug':
-        len_X_obs_train = len(X_train)
-        len_X_aug_train = len(pd.concat(X_aug))
-        X_train = pd.concat([X_train, pd.concat(X_aug)])
-        y_train = pd.concat([y_train, pd.concat(y_aug)])
-        weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
-        sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+    # if mode == 'data_aug':
+    #     len_X_obs_train = len(X_train)
+    #     len_X_aug_train = len(pd.concat(X_aug))
+    #     X_train = pd.concat([X_train, pd.concat(X_aug)])
+    #     y_train = pd.concat([y_train, pd.concat(y_aug)])
+    #     weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+    #     sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+    # else:
+    #     sample_weight = None
+
+    # history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+    #                          y_val=y_val.values, sample_weight=sample_weight)
+    if mode == 'dir_pred':
+        best_model = keras.models.load_model(os.path.join('results', 'models', 'dir_pred.h5'), compile=False)
+    elif mode == 'err_corr':
+        best_model = keras.models.load_model(os.path.join('results', 'models', 'err_corr.h5'), compile=False)
     else:
-        sample_weight = None
+        best_model = joblib.load(os.path.join('results', 'models', 'data_aug.joblib'))
 
-    history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                             y_val=y_val.values, sample_weight=sample_weight)
+    train_importances = permutation_importance(best_model, X_train, y_train, scoring= 'neg_mean_squared_error',
+                                               n_repeats = 50, random_state=10).importances
+    val_importances = permutation_importance(best_model, X_val, y_val, scoring= 'neg_mean_squared_error',
+                                             n_repeats = 50, random_state=10).importances
+    np.savetxt(os.path.join('results', f'train_importances_{mode}.txt'),
+               train_importances, delimiter=',', header='Feature Importance (train)')
+    np.savetxt(os.path.join('results', f'val_importances_{mode}.txt'),
+               val_importances, delimiter=',', header='Feature Importance (val)')
 
-    if best_model.get_model_type() == 'nn':
-        # Save the training history
-        history_df = pd.DataFrame(history.history)
-        history_df.to_csv(os.path.join('results', f'train_history_{mode}.csv'))
+    # Calculate the mean importance values and sort the indices
+    sorted_indices = train_importances.mean(axis=1).argsort()
+
+    # Sort both the columns and importances based on sorted indices
+    sorted_columns = X_train.columns[sorted_indices]
+    sorted_importances = train_importances[sorted_indices]
+
+    # Plot the whisker plots (train)
+    plt.figure(figsize=(10, 6))
+    plt.boxplot(sorted_importances.T, vert=False)
+    plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
+    plt.xlabel('Importance')
+    plt.title('Feature Importances (Permutation)')
+    plt.tight_layout()
+    plt.savefig(os.path.join('results',f'train_importances_{mode}.png'))
+
+    # Calculate the mean importance values and sort the indices
+    sorted_indices = val_importances.mean(axis=1).argsort()
+
+    # Sort both the columns and importances based on sorted indices
+    sorted_columns = X_val.columns[sorted_indices]
+    sorted_importances = val_importances[sorted_indices]
+
+    # Plot the whisker plots (val)
+    plt.figure(figsize=(10, 6))
+    plt.boxplot(sorted_importances.T, vert=False)
+    plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
+    plt.xlabel('Importance')
+    plt.title('Feature Importances (Permutation)')
+    plt.tight_layout()
+    plt.savefig(os.path.join('results',f'val_importances_{mode}.png'))
+
+    # if best_model.get_model_type() == 'nn':
+    #     # Save the training history
+    #     history_df = pd.DataFrame(history.history)
+    #     history_df.to_csv(os.path.join('results', f'train_history_{mode}.csv'))
                           
-        # Plot the MSE history of the training
-        plt.figure()
-        plt.plot(history.history['loss'], label='loss')
-        plt.plot(history.history['val_loss'], label='val_loss')
-        plt.legend()
-        plt.yscale('log')
-        plt.xlabel('Epoch')
-        plt.ylabel('MSE')
-        plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
+    #     # Plot the MSE history of the training
+    #     plt.figure()
+    #     plt.plot(history.history['loss'], label='loss')
+    #     plt.plot(history.history['val_loss'], label='val_loss')
+    #     plt.legend()
+    #     plt.yscale('log')
+    #     plt.xlabel('Epoch')
+    #     plt.ylabel('MSE')
+    #     plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
 
     return best_model
 
