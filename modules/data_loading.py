@@ -60,17 +60,17 @@ def data_loading(obs_data, meteo_data):
         dfs_meteo.append(df_meteo.dropna())
         dfs_obs.append(df_obs.dropna())
 
-    # Save variable information for the meteo dataset to a file
-    with open(os.path.join('results', 'variables_meteo.txt'), "w") as meteo_file:
-        meteo_file.write("Variable information for meteo dataset:\n")
-        for var_name, variable_info in meteo_variables.items():
-            meteo_file.write(str(variable_info) + "\n")
+    # # Save variable information for the meteo dataset to a file
+    # with open(os.path.join('results', 'variables_meteo.txt'), "w") as meteo_file:
+    #     meteo_file.write("Variable information for meteo dataset:\n")
+    #     for var_name, variable_info in meteo_variables.items():
+    #         meteo_file.write(str(variable_info) + "\n")
 
-    # Save variable information for the obs dataset to a file
-    with open(os.path.join('results', 'variables_obs.txt'), "w") as obs_file:
-        obs_file.write("Variable information for obs dataset:\n")
-        for var_name, variable_info in obs_variables.items():
-            obs_file.write(str(variable_info) + "\n")
+    # # Save variable information for the obs dataset to a file
+    # with open(os.path.join('results', 'variables_obs.txt'), "w") as obs_file:
+    #     obs_file.write("Variable information for obs dataset:\n")
+    #     for var_name, variable_info in obs_variables.items():
+    #         obs_file.write(str(variable_info) + "\n")
 
     # Initialize the list of dataframes and initial times
     dfs_model = []
