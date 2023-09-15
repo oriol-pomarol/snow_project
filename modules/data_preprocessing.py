@@ -130,7 +130,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         df_agg['LWdown_int'] = df_agg['LWdown_int'] / 24
 
         # Add the DataFrame to the list
-        dfs_meteo_agg.append(df_agg)
+        dfs_meteo_agg.append(add_lagged_values(df_agg, 14))
 
     return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
 
@@ -225,3 +225,17 @@ def positive_integral(array):
     positive_int = array_positive.sum() * time_diff
 
     return positive_int
+
+####################################################################################
+
+def add_lagged_values(df, lag):
+    new_df = df.copy()
+    
+    for col in df.columns:
+        for i in range(1, lag+1):
+            new_col_name = f'{col}_lag_{i}'
+            new_df[new_col_name] = df[col].shift(i)
+
+    new_df = new_df.dropna()  # Remove rows containing NaN values
+    
+    return new_df
