@@ -80,15 +80,16 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     # Set the possible values for each hyperparameter
     max_depth_vals = [None, 10, 20]
     max_samples_vals = [None, 0.5, 0.8]
-    layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
+    layers_nn_vals = [[2048], [128, 128, 128]]
+    layers_lstm_vals = [[512], [128, 64]]
     learning_rate_vals = [1e-2, 1e-4]
-    rel_weight_vals = [1e-3, 1, 1e3]
+    rel_weight_vals = [0.1, 1, 10]
 
     # Initialize a RF model for each combination of HP
-    for i, max_depth in enumerate(max_depth_vals):
-        for j, max_samples in enumerate(max_samples_vals):
+    for max_depth in max_depth_vals:
+        for max_samples in max_samples_vals:
             if mode == 'data_aug':
-                for k, rel_weight in enumerate(rel_weight_vals):
+                for rel_weight in rel_weight_vals:
                     model = Model('rf')
                     model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
                                               rel_weight=rel_weight)
@@ -99,10 +100,10 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
                 models.append(model)
 
     # Initialize a NN model for each combination of HP
-    for layers in layers_vals:
+    for layers in layers_nn_vals:
         for learning_rate in learning_rate_vals:
             if mode == 'data_aug':
-                for k, rel_weight in enumerate(rel_weight_vals):
+                for rel_weight in rel_weight_vals:
                     model = Model('nn')
                     model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
                                               rel_weight=rel_weight)
@@ -112,6 +113,19 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
                 models.append(model)
             
+    # Initialize a LSTM model for each combination of HP
+    for layers in layers_lstm_vals:
+        for learning_rate in learning_rate_vals:
+            if mode == 'data_aug':
+                for rel_weight in rel_weight_vals:
+                    model = Model('lstm')
+                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
+                                              rel_weight=rel_weight)
+                    models.append(model)
+            else:
+                model = Model('lstm')
+                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+                models.append(model)
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
@@ -170,7 +184,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
                              y_val=y_val.values, sample_weight=sample_weight)
 
-    if best_model.get_model_type() == 'nn':
+    if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
         # Save the training history
         history_df = pd.DataFrame(history.history)
         history_df.to_csv(os.path.join('results', f'train_history_{mode}.csv'))
@@ -189,7 +203,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
 
 class Model:
     def __init__(self, model_type):
-        if model_type.lower() in ['nn', 'rf']:
+        if model_type.lower() in ['nn', 'rf','lstm']:
             self.model_type = model_type.lower()
             self.model = None
         else:
@@ -211,13 +225,22 @@ class Model:
             self.model.add(keras.layers.Dense(1, activation='linear'))
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
+        elif self.model_type == 'lstm':
+            self.model = keras.models.Sequential()
+            self.model.add(keras.layers.Input(shape=input_shape))
+            for units in self.hyperparameters.get('layers', [128]):
+                activation = self.hyperparameters.get('activation', 'relu')
+                self.model.add(keras.layers.LSTM(units, activation=activation))
+            self.model.add(keras.layers.Dense(1, activation='linear'))
+            self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
+                               loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'rf':
             self.model = RandomForestRegressor(n_estimators=200, random_state=10,
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
 
     def fit(self, X, y, X_val, y_val, **kwargs):      
-        if self.model_type == 'nn':
+        if self.model_type == 'nn' or self.model_type == 'lstm':
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
             history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
