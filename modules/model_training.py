@@ -299,5 +299,15 @@ def move_old_files(source_folder):
 
 ####################################################################################
 
-def preprocess_data_lstm(X):
-    return X
+def preprocess_data_lstm(X, lag):
+        # Get the shape of the input array
+    shape = X.shape
+
+    # Calculate the number of subarrays along the last axis
+    num_subarrays = shape[-1] // lag
+
+    # Reshape the array by splitting it along the last axis
+    new_shape = shape[:-1] + (num_subarrays, lag)
+    transformed_X = X.reshape(new_shape)
+
+    return transformed_X
