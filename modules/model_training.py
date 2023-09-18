@@ -24,8 +24,8 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     # Find the common indices for the observations
     common_indices = []
     for df_meteo, df_obs in zip(dfs_meteo_agg, dfs_obs_delta_swe):
-        common_indices = set(df_meteo.index).intersection(df_obs.index)
-        common_indices.append(common_indices)
+        common_indices_i = sorted(set(df_meteo.index).intersection(df_obs.index))
+        common_indices.append(common_indices_i)
 
     # Set the X and y and initialize model selection
     X_obs = [dfs_meteo_agg[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
@@ -47,8 +47,8 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     # Find the common indices for the augmented data
     common_indices = []
     for df_meteo, df_obs in zip(dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
-        common_indices = set(df_meteo.index).intersection(df_obs.index)
-        common_indices.append(common_indices)
+        common_indices_i = sorted(set(df_meteo.index).intersection(df_obs.index))
+        common_indices.append(common_indices_i)
 
     # Set the X and y and initialize model selection
     X_aug = [dfs_meteo_agg_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]

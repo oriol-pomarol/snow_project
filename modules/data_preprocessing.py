@@ -234,7 +234,7 @@ def add_lagged_values(df, lag):
     for col in df.columns:
         for i in range(1, lag+1):
             new_col_name = f'{col}_lag_{i}'
-            new_df[new_col_name] = df[col].shift(i)
+            new_df = new_df.assign(**{new_col_name: df[col].shift(i)})
 
     new_df = new_df.dropna()  # Remove rows containing NaN values
     
