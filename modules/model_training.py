@@ -201,6 +201,8 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
 
     return best_model
 
+####################################################################################
+
 class Model:
     def __init__(self, model_type):
         if model_type.lower() in ['nn', 'rf','lstm']:
@@ -272,7 +274,9 @@ class Model:
             model_name += f"_{param_name}{value_str}"
         
         return model_name
-    
+
+####################################################################################
+
 def move_old_files(source_folder):
     target_folder = os.path.join(source_folder, "old_files")
     
@@ -292,3 +296,8 @@ def move_old_files(source_folder):
         print("Files moved successfully.")
     else:
         print("No files to move.")
+
+####################################################################################
+
+def preprocess_data_lstm(X):
+    return X
