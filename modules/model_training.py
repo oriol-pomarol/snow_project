@@ -28,16 +28,16 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
         common_indices.append(common_indices_i)
 
     # Set the X and y and initialize model selection
-    X_obs = [dfs_meteo_agg[j].loc[common_indices[i]] for i,j in enumerate(dfs_obs_train_idx)]
-    y_obs = [dfs_obs_delta_swe[j].loc[common_indices[i]] for i,j in enumerate(dfs_obs_train_idx)]
+    X_obs = [dfs_meteo_agg[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
+    y_obs = [dfs_obs_delta_swe[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
     model_dp = model_selection(X=X_obs, y=y_obs, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
     # Error correction
     print('Starting error correction training...')
-    X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[i]],
-                    dfs_mod_delta_swe[j].loc[common_indices[i]]], axis=1) \
-                        for i,j in enumerate(dfs_obs_train_idx)]
+    X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
+                    dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
+                        for j in dfs_obs_train_idx]
     model_ec = model_selection(X=X, y=y_obs, mode = 'err_corr')
     print('Error correction trained successfully...')
 
@@ -51,8 +51,8 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
         common_indices.append(common_indices_i)
 
     # Set the X and y and initialize model selection
-    X_aug = [dfs_meteo_agg_aug[j].loc[common_indices[i]] for i,j in enumerate(range(len(dfs_meteo_agg_aug)))]
-    y_aug = [dfs_mod_delta_swe_aug[j].loc[common_indices[i]] for i,j in enumerate(range(len(dfs_meteo_agg_aug)))]
+    X_aug = [dfs_meteo_agg_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
+    y_aug = [dfs_mod_delta_swe_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
 
     model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=y_aug, mode = 'data_aug')
     print('Data augmentation trained successfully...')
