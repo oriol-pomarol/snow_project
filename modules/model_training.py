@@ -68,7 +68,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     max_samples_vals = [None, 0.5, 0.8]
     layers_vals = [[128], [2048], [64,64], [32, 32, 32], [128, 128, 128]]
     learning_rate_vals = [1e-2, 1e-4]
-    rel_weight_vals = [1e-3, 1, 1e3]
+    rel_weight_vals = [0.1, 1, 10]
 
     # Initialize a RF model for each combination of HP
     for i, max_depth in enumerate(max_depth_vals):
