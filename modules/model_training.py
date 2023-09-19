@@ -241,7 +241,10 @@ class Model:
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
 
-    def fit(self, X, y, X_val, y_val, **kwargs):      
+    def fit(self, X, y, X_val, y_val, **kwargs):
+        if self.model_type == 'lstm':
+            X = preprocess_data_lstm(X)
+            X_val = preprocess_data_lstm(X_val)      
         if self.model_type == 'nn' or self.model_type == 'lstm':
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
@@ -252,6 +255,8 @@ class Model:
             return None
     
     def test(self, X, y):
+        if self.model_type == 'lstm':
+            X = preprocess_data_lstm(X)
         y_pred = self.model.predict(X)
         mse = mean_squared_error(y, y_pred)
         return mse
@@ -300,7 +305,7 @@ def move_old_files(source_folder):
 ####################################################################################
 
 def preprocess_data_lstm(X, lag):
-        # Get the shape of the input array
+    # Get the shape of the input array
     shape = X.shape
 
     # Calculate the number of subarrays along the last axis
