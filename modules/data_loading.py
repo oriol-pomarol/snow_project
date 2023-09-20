@@ -90,8 +90,8 @@ def data_loading(obs_data, meteo_data):
         # Read the .nc file into a dataset
         mod_data = xr.open_dataset(file_path, decode_times=False)
 
-        # Create a dictionary to store variable information
-        variable_info = {}
+        # # Create a dictionary to store variable information
+        # variable_info = {}
 
         # Iterate over the variables in the dataset
         for var_name, var in mod_data.variables.items():
@@ -101,44 +101,44 @@ def data_loading(obs_data, meteo_data):
             if var_name == 'time':
                 start_dates.append(pd.to_datetime(units[12:]))
 
-            # Extract the variable number
-            var_num = ''
-            for c in var_name[::-1]:
-                if c.isdigit():
-                    var_num = c + var_num
-                else:
-                    break
+        #     # Extract the variable number
+        #     var_num = ''
+        #     for c in var_name[::-1]:
+        #         if c.isdigit():
+        #             var_num = c + var_num
+        #         else:
+        #             break
 
-            if var_num:
-                var_base_name = var_name[:-len(var_num)]
+        #     if var_num:
+        #         var_base_name = var_name[:-len(var_num)]
 
-                # Update the variable_info dictionary
-                if var_base_name not in variable_info:
-                    variable_info[var_base_name] = {
-                        'explanations': explanation.replace('1', 'X'),
-                        'units': units,
-                        'numbers': []
-                    }
-                variable_info[var_base_name]['numbers'].append(int(var_num))
-            else:
-                variable_info[var_name] = {
-                    'explanations': explanation,
-                    'units': units
-                }
+        #         # Update the variable_info dictionary
+        #         if var_base_name not in variable_info:
+        #             variable_info[var_base_name] = {
+        #                 'explanations': explanation.replace('1', 'X'),
+        #                 'units': units,
+        #                 'numbers': []
+        #             }
+        #         variable_info[var_base_name]['numbers'].append(int(var_num))
+        #     else:
+        #         variable_info[var_name] = {
+        #             'explanations': explanation,
+        #             'units': units
+        #         }
 
-        if idx == 0:
-            with open(os.path.join('results', 'variables_obs.txt'), "w") as mod_file:
-                mod_file.write("Variable information for mod dataset:\n")
-                # Get each variable explanation and units
-                for var_name, info in variable_info.items():
-                    explanation = info['explanations']
-                    units = info['units']
-                    # If there are numerated instances of the same variable, save once specifying the range
-                    if 'numbers' in info:
-                        var_name += f"{{{min(info['numbers'])}-{max(info['numbers'])}}}"
-                    # Format the information and write to file
-                    variable_info_text = f"{var_name}: {explanation} ({units})"
-                    mod_file.write(variable_info_text + "\n")
+        # if idx == 0:
+        #     with open(os.path.join('results', 'variables_obs.txt'), "w") as mod_file:
+        #         mod_file.write("Variable information for mod dataset:\n")
+        #         # Get each variable explanation and units
+        #         for var_name, info in variable_info.items():
+        #             explanation = info['explanations']
+        #             units = info['units']
+        #             # If there are numerated instances of the same variable, save once specifying the range
+        #             if 'numbers' in info:
+        #                 var_name += f"{{{min(info['numbers'])}-{max(info['numbers'])}}}"
+        #             # Format the information and write to file
+        #             variable_info_text = f"{var_name}: {explanation} ({units})"
+        #             mod_file.write(variable_info_text + "\n")
 
         # Select the total SWE only
         mod_swe_data = mod_data['WSN_T_ISBA']
