@@ -127,7 +127,7 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, modes):
             pred_swe_arr[i,j] = max(pred_swe_arr[i,j-1] + pred_y.ravel(), 0)
         
         # Find the MSE and store it in the list
-        pred_obs = pred_swe_arr[i][np.isin(fwd_X.index, obs.index)]
+        pred_obs = pred_swe_arr[i][np.isin(meteo_agg.index, obs.index)]
         mse_swe = mean_squared_error(obs.values, pred_obs)
         mse_swe_list.append(mse_swe)
 
