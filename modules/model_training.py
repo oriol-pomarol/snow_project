@@ -90,12 +90,12 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     #     for max_samples in max_samples_vals:
     #         if mode == 'data_aug':
     #             for rel_weight in rel_weight_vals:
-    #                 model = Model('rf', lag)
+    #                 model = Model(mode, 'rf', lag)
     #                 model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
     #                                           rel_weight=rel_weight)
     #                 models.append(model)
     #         else:
-    #             model = Model('rf')
+    #             model = Model(mode, 'rf', lag)
     #             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
     #             models.append(model)
 
@@ -104,12 +104,12 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     #     for learning_rate in learning_rate_vals:
     #         if mode == 'data_aug':
     #             for rel_weight in rel_weight_vals:
-    #                 model = Model('nn', lag)
+    #                 model = Model(mode, 'nn', lag)
     #                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
     #                                           rel_weight=rel_weight)
     #                 models.append(model)
     #         else:
-    #             model = Model('nn')
+    #             model = Model(mode, 'nn', lag)
     #             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
     #             models.append(model)
             
@@ -118,13 +118,13 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         for learning_rate in learning_rate_vals:
             if mode == 'data_aug':
                 for rel_weight in rel_weight_vals:
-                    model = Model('lstm', lag)
+                    model = Model(mode, 'lstm', lag)
                     model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
                                               rel_weight=rel_weight)
                     model.create_model(X[0].shape[1])
                     models.append(model)
             else:
-                model = Model('lstm')
+                model = Model(mode, 'lstm', lag)
                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
                 model.create_model(X[0].shape[1])
                 models.append(model)
@@ -205,14 +205,16 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 ####################################################################################
 
 class Model:
-    def __init__(self, model_type, lag):
-        if model_type.lower() in ['nn', 'rf','lstm']:
+    def __init__(self, mode, model_type, lag):
+        valid_model_type = model_type.lower() in ['nn', 'rf','lstm'] 
+        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
+        if valid_model_type and valid_mode:
             self.model_type = model_type.lower()
+            self.mode = mode.lower()
             self.lag = lag
             self.model = None
         else:
-            raise ValueError("Invalid model type. Choose 'nn' or 'lstm' for neural networks"
-                             ", or 'rf' for random forest.")
+            raise ValueError("Invalid model setup or model type.")
         
         self.hyperparameters = {}
 
@@ -240,7 +242,7 @@ class Model:
                     x = keras.layers.LSTM(units, activation=activation, return_sequences=True)(x)
                 else:
                     x = keras.layers.LSTM(units, activation=activation)(x)
-            if mode == 'err_corr':
+            if self.mode == 'err_corr':
                 extra_var_input = keras.layers.Input(shape=(1,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
@@ -255,11 +257,19 @@ class Model:
 
     def fit(self, X, y, X_val, y_val, **kwargs):
         if self.model_type == 'lstm':
+            if self.mode == 'err_corr':
+                X_mod = X[:,-1]
+                X = X[:,:-1]
+                X_val_mod = X_val[:,-1]
+                X_val = X_val[:,:-1]
             X = preprocess_data_lstm(X, self.lag)
             X_val = preprocess_data_lstm(X_val, self.lag)      
-        if self.model_type == 'nn' or self.model_type == 'lstm':
+        if self.model_type in ['nn', 'lstm']:
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
+            if self.model_type == 'lstm' and self.mode == 'err_corr':
+                history = self.model.fit([X,X_mod], y, epochs=100, validation_data=([X_val,X_val_mod], y_val),
+                                         callbacks=[early_stopping], **kwargs)
             history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
             return history
         elif self.model_type == 'rf':
