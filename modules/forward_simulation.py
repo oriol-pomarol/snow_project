@@ -115,6 +115,7 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, modes):
             fwd_X = meteo_agg
         elif mode == 'err_corr':
             fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
+            fwd_X = fwd_X.dropna()
 
         for j in range(1,len(meteo_agg)):
             if j % (len(meteo_agg) // 5) == 0:
