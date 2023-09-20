@@ -64,6 +64,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
                       'Rainf_max', 'Snowf_avg', 'LWdown_int', 'LWdown_dav',
                       'SWdown_int', 'SWdown_dav', 'Tair_avg', 'Tair_int',
                       'Wind_avg', 'Wind_max']
+    lag = 14 #define the lag
 
     # Create an empty list for the aggregated meteo DataFrames
     dfs_meteo_agg = []
@@ -130,9 +131,9 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         df_agg['LWdown_int'] = df_agg['LWdown_int'] / 24
 
         # Add the DataFrame to the list
-        dfs_meteo_agg.append(add_lagged_values(df_agg, 14))
+        dfs_meteo_agg.append(add_lagged_values(df_agg, lag))
 
-    return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
+    return lag, dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
 
 ####################################################################################
 # EXTRA FUNCTIONS

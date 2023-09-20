@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import os
 import joblib
 
-def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
+def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
 
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
@@ -30,16 +30,16 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     # Set the X and y and initialize model selection
     X_obs = [dfs_meteo_agg[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
     y_obs = [dfs_obs_delta_swe[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
-    model_dp = model_selection(X=X_obs, y=y_obs, mode = 'dir_pred')
+    model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
-    # Error correction
-    print('Starting error correction training...')
-    X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
-                    dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
-                        for j in dfs_obs_train_idx]
-    model_ec = model_selection(X=X, y=y_obs, mode = 'err_corr')
-    print('Error correction trained successfully...')
+    # # Error correction
+    # print('Starting error correction training...')
+    # X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
+    #                 dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
+    #                     for j in dfs_obs_train_idx]
+    # model_ec = model_selection(X=X, y=y_obs, lag=lag, mode = 'err_corr')
+    # print('Error correction trained successfully...')
 
     # Data augmentation
     print('Starting data augmentation training...')
@@ -54,7 +54,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     X_aug = [dfs_meteo_agg_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
     y_aug = [dfs_mod_delta_swe_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
 
-    model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug, y_aug=y_aug, mode = 'data_aug')
+    model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug, y_aug=y_aug, mode = 'data_aug')
     print('Data augmentation trained successfully...')
 
     # Move any files in the models folder to an old_files folder
@@ -62,7 +62,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
     move_old_files(source_folder)
 
     # Save the models
-    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
+    for model, mode in zip([model_dp, model_da],['dir_pred', 'data_aug']): #zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif 'nn' in str(model):
@@ -73,7 +73,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mete
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
+def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     # Initialize the models in a list
     models = []
 
@@ -83,48 +83,50 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     layers_nn_vals = [[2048], [128, 128, 128]]
     layers_lstm_vals = [[512], [128, 64]]
     learning_rate_vals = [1e-2, 1e-4]
-    rel_weight_vals = [0.1, 1, 10]
+    rel_weight_vals = [1] #0.1, 1, 10
 
-    # Initialize a RF model for each combination of HP
-    for max_depth in max_depth_vals:
-        for max_samples in max_samples_vals:
-            if mode == 'data_aug':
-                for rel_weight in rel_weight_vals:
-                    model = Model('rf')
-                    model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
-                                              rel_weight=rel_weight)
-                    models.append(model)
-            else:
-                model = Model('rf')
-                model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
-                models.append(model)
+    # # Initialize a RF model for each combination of HP
+    # for max_depth in max_depth_vals:
+    #     for max_samples in max_samples_vals:
+    #         if mode == 'data_aug':
+    #             for rel_weight in rel_weight_vals:
+    #                 model = Model('rf', lag)
+    #                 model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
+    #                                           rel_weight=rel_weight)
+    #                 models.append(model)
+    #         else:
+    #             model = Model('rf')
+    #             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
+    #             models.append(model)
 
-    # Initialize a NN model for each combination of HP
-    for layers in layers_nn_vals:
-        for learning_rate in learning_rate_vals:
-            if mode == 'data_aug':
-                for rel_weight in rel_weight_vals:
-                    model = Model('nn')
-                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
-                                              rel_weight=rel_weight)
-                    models.append(model)
-            else:
-                model = Model('nn')
-                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-                models.append(model)
+    # # Initialize a NN model for each combination of HP
+    # for layers in layers_nn_vals:
+    #     for learning_rate in learning_rate_vals:
+    #         if mode == 'data_aug':
+    #             for rel_weight in rel_weight_vals:
+    #                 model = Model('nn', lag)
+    #                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
+    #                                           rel_weight=rel_weight)
+    #                 models.append(model)
+    #         else:
+    #             model = Model('nn')
+    #             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+    #             models.append(model)
             
     # Initialize a LSTM model for each combination of HP
     for layers in layers_lstm_vals:
         for learning_rate in learning_rate_vals:
             if mode == 'data_aug':
                 for rel_weight in rel_weight_vals:
-                    model = Model('lstm')
+                    model = Model('lstm', lag)
                     model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
                                               rel_weight=rel_weight)
+                    model.create_model(X[0].shape[1])
                     models.append(model)
             else:
                 model = Model('lstm')
                 model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+                model.create_model(X[0].shape[1])
                 models.append(model)
 
     # Perform leave-one-out validation between training stations
@@ -137,7 +139,6 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
 
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
-            model.create_model(X[0].shape[1])
             X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
             y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
@@ -204,12 +205,14 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
 ####################################################################################
 
 class Model:
-    def __init__(self, model_type):
+    def __init__(self, model_type, lag):
         if model_type.lower() in ['nn', 'rf','lstm']:
             self.model_type = model_type.lower()
+            self.lag = lag
             self.model = None
         else:
-            raise ValueError("Invalid model type. Choose 'nn' for neural network or 'rf' for random forest.")
+            raise ValueError("Invalid model type. Choose 'nn' or 'lstm' for neural networks"
+                             ", or 'rf' for random forest.")
         
         self.hyperparameters = {}
 
@@ -228,12 +231,21 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'lstm':
-            self.model = keras.models.Sequential()
-            self.model.add(keras.layers.Input(shape=input_shape))
-            for units in self.hyperparameters.get('layers', [128]):
-                activation = self.hyperparameters.get('activation', 'relu')
-                self.model.add(keras.layers.LSTM(units, activation=activation))
-            self.model.add(keras.layers.Dense(1, activation='linear'))
+            sequential_input = keras.layers.Input(shape=(self.lag, (input_shape-1) // self.lag))
+            activation = self.hyperparameters.get('activation', 'relu')
+            depth = len(self.hyperparameters.get('layers'))
+            x = sequential_input
+            for layer, units in enumerate(self.hyperparameters.get('layers', [128])):
+                if (depth > 1) and (layer + 1 < depth):
+                    x = keras.layers.LSTM(units, activation=activation, return_sequences=True)(x)
+                else:
+                    x = keras.layers.LSTM(units, activation=activation)(x)
+            if mode == 'err_corr':
+                extra_var_input = keras.layers.Input(shape=(1,), name='extra_var_input')
+                combined_input = keras.layers.Concatenate()([x, extra_var_input])
+                x = keras.layers.Dense(units=128, activation=activation)(combined_input)
+            output_layer = keras.layers.Dense(1, activation='linear')(x)
+            self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'rf':
@@ -243,8 +255,8 @@ class Model:
 
     def fit(self, X, y, X_val, y_val, **kwargs):
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X)
-            X_val = preprocess_data_lstm(X_val)      
+            X = preprocess_data_lstm(X, self.lag)
+            X_val = preprocess_data_lstm(X_val, self.lag)      
         if self.model_type == 'nn' or self.model_type == 'lstm':
             # Define early stopping callback
             early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
@@ -256,7 +268,7 @@ class Model:
     
     def test(self, X, y):
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X)
+            X = preprocess_data_lstm(X, self.lag)
         y_pred = self.model.predict(X)
         mse = mean_squared_error(y, y_pred)
         return mse
@@ -314,5 +326,8 @@ def preprocess_data_lstm(X, lag):
     # Reshape the array by splitting it along the last axis
     new_shape = shape[:-1] + (num_subarrays, lag)
     transformed_X = X.reshape(new_shape)
+
+    # Transpose the subarrays to get the desired structure
+    transformed_X = np.transpose(transformed_X, axes=(0, 2, 1))
 
     return transformed_X
