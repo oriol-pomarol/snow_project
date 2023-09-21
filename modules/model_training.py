@@ -83,60 +83,28 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     layers_nn_vals = [[2048], [128, 128, 128]]
     layers_lstm_vals = [[512], [128, 64]]
     learning_rate_vals = [1e-3, 1e-5]
-    rel_weight_vals = [1] #0.1, 1, 10
+    rel_weight_vals = [0.5, 1, 2]
 
     # Initialize a RF model for each combination of HP
     for max_depth in max_depth_vals:
         for max_samples in max_samples_vals:
-            # if mode == 'data_aug':
-            #     for rel_weight in rel_weight_vals:
-            #         model = Model(mode, 'rf', lag)
-            #         model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples,
-            #                                   rel_weight=rel_weight)
-            #         models.append(model)
-            # else:
-            model = Model(mode, 'rf', lag)
+            model = Model('rf')
             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
-            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Initialize a NN model for each combination of HP
     for layers in layers_nn_vals:
         for learning_rate in learning_rate_vals:
-            # if mode == 'data_aug':
-            #     for rel_weight in rel_weight_vals:
-            #         model = Model(mode, 'nn', lag)
-            #         model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
-            #                                   rel_weight=rel_weight)
-            #         models.append(model)
-            # else:
-            model = Model(mode, 'nn', lag)
+            model = Model('nn')
             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            model.create_model(X[0].shape[1])
-            models.append(model)
-            
-    # Initialize a LSTM model for each combination of HP
-    for layers in layers_lstm_vals:
-        for learning_rate in learning_rate_vals:
-            # if mode == 'data_aug':
-            #     for rel_weight in rel_weight_vals:
-            #         model = Model(mode, 'lstm', lag)
-            #         model.set_hyperparameters(layers=layers, learning_rate=learning_rate,
-            #                                   rel_weight=rel_weight)
-            #         model.create_model(X[0].shape[1])
-            #         models.append(model)
-            # else:
-            model = Model(mode, 'lstm', lag)
-            model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            model.create_model(X[0].shape[1])
             models.append(model)
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
-    hyperparameters = []
+    model_names = []
 
     for m, model in enumerate(models):
-        hyperparameters.append(str(model))
+        model_names.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
 
         for i in range(len(X)):
@@ -164,10 +132,45 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     mean_loss = np.mean(losses, axis=1)
     best_model = models[np.argmin(mean_loss)]
 
+    # If in data augmentation, tune the relative weight of the obs/mod data
+    if mode == 'data_aug':
+        losses_rw = np.zeros((len(rel_weight_vals), len(X)))
+        for w, rel_weight in enumerate(rel_weight_vals):
+            if rel_weight == 1:
+                loss = np.min(mean_loss)
+            else:
+                model_names.append(str(best_model) + f'_rw_{rel_weight}')
+                print(f'Relative weight {m+1} of {len(models)}.')
+                for i in range(len(X)):
+                    print(f'Train/val split {i+1} of {len(X)}.')
+                    best_model.create_model(X[0].shape[1])
+                    X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+                    y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+                    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, 
+                                                                      test_size=0.2, random_state=10)
+                    len_X_obs_train = len(X_train)
+                    len_X_aug_train = len(pd.concat(X_aug))
+                    X_train = pd.concat([X_train, pd.concat(X_aug)])
+                    y_train = pd.concat([y_train, pd.concat(y_aug)])
+                    weight_aug = rel_weight * len_X_obs_train / len_X_aug_train
+                    sample_weight = np.concatenate((np.ones(len_X_obs_train),
+                                                    np.full(len_X_aug_train, weight_aug)))
+
+                model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+                      y_val=y_val.values, sample_weight=sample_weight)
+                loss = model.test(X=X[i].values, y=y[i].values)
+            losses_rw[w,i] = loss
+
+        # Select the best model
+        mean_loss_rw = np.mean(losses_rw, axis=1)
+        best_rw = rel_weight[np.argmin(mean_loss_rw)]
+        losses = np.vstack((losses,losses_rw))
+        mean_loss = np.append(mean_loss, mean_loss_rw)
+
     # Save the model hyperparameters and their losses as a csv
     df_losses = pd.DataFrame({'MSE (Split 1)':losses[:,0], 'MSE (Split 2)':losses[:,1],
                               'MSE (Split 3)':losses[:,2], 'MSE (mean)':mean_loss,
-                              'HP':hyperparameters})
+                              'HP':model_names})
     df_losses.set_index('HP', inplace=True)
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
@@ -179,11 +182,12 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         len_X_aug_train = len(pd.concat(X_aug))
         X_train = pd.concat([X_train, pd.concat(X_aug)])
         y_train = pd.concat([y_train, pd.concat(y_aug)])
-        weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+        weight_aug = best_rw * len_X_obs_train / len_X_aug_train
         sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
     else:
         sample_weight = None
 
+    best_model.create_model(X_train[0].shape[1])
     history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
                              y_val=y_val.values, sample_weight=sample_weight)
 
