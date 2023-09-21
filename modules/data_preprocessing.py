@@ -66,7 +66,6 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
                       'Rainf_max', 'Snowf_avg', 'LWdown_int', 'LWdown_dav',
                       'SWdown_int', 'SWdown_dav', 'Tair_avg', 'Tair_int',
                       'Wind_avg', 'Wind_max']
-    lag = 14 #define the lag
 
     # Create an empty list for the aggregated meteo DataFrames
     dfs_meteo_agg = []
