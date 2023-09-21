@@ -66,6 +66,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
                       'Rainf_max', 'Snowf_avg', 'LWdown_int', 'LWdown_dav',
                       'SWdown_int', 'SWdown_dav', 'Tair_avg', 'Tair_int',
                       'Wind_avg', 'Wind_max']
+    lag = 14 #define the lag
 
     # Create an empty list for the aggregated meteo DataFrames
     dfs_meteo_agg = []
@@ -134,7 +135,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         # Add the DataFrame to the list
         dfs_meteo_agg.append(add_lagged_values(df_agg, lag))
 
-    return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
+    return lag, dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
 
 ####################################################################################
 # EXTRA FUNCTIONS
@@ -233,10 +234,11 @@ def positive_integral(array):
 def add_lagged_values(df, lag):
     new_df = df.copy()
     
-    for col in df.columns:
-        for i in range(1, lag+1):
-            new_col_name = f'{col}_lag_{i}'
-            new_df = new_df.assign(**{new_col_name: df[col].shift(i)})
+    for i, col in enumerate(df.columns):
+        new_df = pd.concat([new_df.iloc[:, :i*(lag+1)+1],
+                            pd.DataFrame({f'{col}_lag_{j}':df[col].shift(j) \
+                                          for j in range(1, lag+1)}),
+                            new_df.iloc[:, i*(lag+1)+1:]], axis=1)
 
     new_df = new_df.dropna()  # Remove rows containing NaN values
     
