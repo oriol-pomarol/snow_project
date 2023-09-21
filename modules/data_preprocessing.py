@@ -6,6 +6,8 @@ import datetime
 import pytz
 
 def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
+    # Set the amount of lagged days to add
+    lag = 14
     # Define a list to save the ΔSWE measurements
     dfs_obs_delta_swe = []
     # Iterate over stations and variables
@@ -130,7 +132,7 @@ def data_preprocessing(dfs_obs, dfs_meteo, dfs_model, locations):
         df_agg['LWdown_int'] = df_agg['LWdown_int'] / 24
 
         # Add the DataFrame to the list
-        dfs_meteo_agg.append(add_lagged_values(df_agg, 14))
+        dfs_meteo_agg.append(add_lagged_values(df_agg, lag))
 
     return dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt
 
