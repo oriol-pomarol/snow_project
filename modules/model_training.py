@@ -88,14 +88,14 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     # Initialize a RF model for each combination of HP
     for max_depth in max_depth_vals:
         for max_samples in max_samples_vals:
-            model = Model('rf')
+            model = Model(mode, 'rf', lag)
             model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
             models.append(model)
 
     # Initialize a NN model for each combination of HP
     for layers in layers_nn_vals:
         for learning_rate in learning_rate_vals:
-            model = Model('nn')
+            model = Model(mode, 'nn', lag)
             model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
             models.append(model)
 
