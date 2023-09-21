@@ -30,16 +30,16 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs
     # Set the X and y and initialize model selection
     X_obs = [dfs_meteo_agg[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
     y_obs = [dfs_obs_delta_swe[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
-    model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
+    # model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
-    # # Error correction
-    # print('Starting error correction training...')
-    # X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
-    #                 dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
-    #                     for j in dfs_obs_train_idx]
-    # model_ec = model_selection(X=X, y=y_obs, lag=lag, mode = 'err_corr')
-    # print('Error correction trained successfully...')
+    # Error correction
+    print('Starting error correction training...')
+    X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
+                    dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
+                        for j in dfs_obs_train_idx]
+    model_ec = model_selection(X=X, y=y_obs, lag=lag, mode = 'err_corr')
+    print('Error correction trained successfully...')
 
     # Data augmentation
     print('Starting data augmentation training...')
@@ -61,12 +61,12 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs
     source_folder = os.path.join('results', 'models')
     move_old_files(source_folder)
 
-    # Save the models
-    for model, mode in zip([model_dp, model_da],['dir_pred', 'data_aug']): #zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
-        if 'rf' in str(model):
-            joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
-        elif 'nn' in str(model):
-            model.model.save(os.path.join(source_folder, f'{mode}.h5'))
+    # # Save the models
+    # for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
+    #     if 'rf' in str(model):
+    #         joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
+    #     elif 'nn' in str(model):
+    #         model.model.save(os.path.join(source_folder, f'{mode}.h5'))
     return
 
 ####################################################################################
@@ -82,7 +82,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     max_samples_vals = [None, 0.5, 0.8]
     layers_nn_vals = [[2048], [128, 128, 128]]
     layers_lstm_vals = [[512], [128, 64]]
-    learning_rate_vals = [1e-2, 1e-4]
+    learning_rate_vals = [1e-3] #1e-2, 1e-4
     rel_weight_vals = [1] #0.1, 1, 10
 
     # # Initialize a RF model for each combination of HP
@@ -233,7 +233,7 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(self.lag, (input_shape-1) // self.lag))
+            sequential_input = keras.layers.Input(shape=(self.lag, (input_shape-1*(self.mode=='err_corr')) // self.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
