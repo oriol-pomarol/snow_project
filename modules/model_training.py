@@ -247,7 +247,10 @@ class Model:
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
             output_layer = keras.layers.Dense(1, activation='linear')(x)
-            self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
+            if self.mode == 'err_corr':
+                self.model = keras.models.Model(inputs=[sequential_input, extra_var_input], outputs=output_layer)
+            else:
+                self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'rf':
@@ -270,7 +273,8 @@ class Model:
             if self.model_type == 'lstm' and self.mode == 'err_corr':
                 history = self.model.fit([X,X_mod], y, epochs=100, validation_data=([X_val,X_val_mod], y_val),
                                          callbacks=[early_stopping], **kwargs)
-            history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
+            else:
+                history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
             return history
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
@@ -278,8 +282,14 @@ class Model:
     
     def test(self, X, y):
         if self.model_type == 'lstm':
+            if self.mode == 'err_corr':
+                X_mod = X[:,-1]
+                X = X[:,:-1]
             X = preprocess_data_lstm(X, self.lag)
-        y_pred = self.model.predict(X)
+        if self.model_type == 'lstm' and self.mode == 'err_corr':
+            y_pred = self.model.predict([X,X_mod])
+        else:
+            y_pred = self.model.predict(X)
         mse = mean_squared_error(y, y_pred)
         return mse
 

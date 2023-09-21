@@ -232,10 +232,11 @@ def positive_integral(array):
 def add_lagged_values(df, lag):
     new_df = df.copy()
     
-    for j, col in enumerate(df.columns):
-        for i in range(1, lag+1):
-            new_col_name = f'{col}_lag_{i}'
-            new_df.insert(j*(lag+1) + i, new_col_name, df[col].shift(i))
+    for i, col in enumerate(df.columns):
+        new_df = pd.concat([new_df.iloc[:, :i*(lag+1)+1],
+                            pd.DataFrame({f'{col}_lag_{j}':df[col].shift(j) \
+                                          for j in range(1, lag+1)}),
+                            new_df.iloc[:, i*(lag+1)+1:]], axis=1)
 
     new_df = new_df.dropna()  # Remove rows containing NaN values
     
