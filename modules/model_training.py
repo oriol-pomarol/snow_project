@@ -100,12 +100,13 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
             models.append(model)
 
     # Initialize a LSTM model for each combination of HP
-    for layers in layers_lstm_vals:
-        for learning_rate in learning_rate_vals:
-            model = Model(mode, 'lstm', lag)
-            model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            model.create_model(X[0].shape[1])
-            models.append(model)
+    if lag > 0:
+        for layers in layers_lstm_vals:
+            for learning_rate in learning_rate_vals:
+                model = Model(mode, 'lstm', lag)
+                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
+                model.create_model(X[0].shape[1])
+                models.append(model)
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
