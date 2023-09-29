@@ -83,6 +83,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     layers_nn_vals = [[2048], [128, 128, 128]]
     layers_lstm_vals = [[512], [128, 64]]
     learning_rate_vals = [1e-3, 1e-5]
+    l2_reg_vals = [0, 1e-2, 1e-4]
     rel_weight_vals = [0.5, 1, 2]
 
     # Initialize a RF model for each combination of HP
@@ -95,18 +96,19 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     # Initialize a NN model for each combination of HP
     for layers in layers_nn_vals:
         for learning_rate in learning_rate_vals:
-            model = Model(mode, 'nn', lag)
-            model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-            models.append(model)
+            for l2_reg in l2_reg_vals:
+                model = Model(mode, 'nn', lag)
+                model.set_hyperparameters(layers=layers, learning_rate=learning_rate, l2_reg=l2_reg)
+                models.append(model)
 
     # Initialize a LSTM model for each combination of HP
     if lag > 0:
         for layers in layers_lstm_vals:
             for learning_rate in learning_rate_vals:
-                model = Model(mode, 'lstm', lag)
-                model.set_hyperparameters(layers=layers, learning_rate=learning_rate)
-                model.create_model(X[0].shape[1])
-                models.append(model)
+                for l2_reg in l2_reg_vals:
+                    model = Model(mode, 'lstm', lag)
+                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate, l2_reg=l2_reg)
+                    models.append(model)
 
     # Perform leave-one-out validation between training stations
     losses = np.zeros((len(models), len(X)))
@@ -115,6 +117,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     for m, model in enumerate(models):
         model_names.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
+        model.create_model(X[0].shape[1])
 
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
