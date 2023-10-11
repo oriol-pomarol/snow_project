@@ -43,7 +43,8 @@ print('Successfully trained models...')
 
 # Test the models by use of the forward simulation
 print('Performing forward simulation...')
-forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe, station_years=['cdp_2002','rme_2002', 'wfj_2002'])
+forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe,
+                   lag, station_years=['cdp_2002','rme_2002', 'wfj_2002'])
 print('Successfully performed forward simulation...')
 
 # Print execution time

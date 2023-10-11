@@ -8,7 +8,7 @@ import os
 import pickle
 
 def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all, 
-                       station_years=[], load_data=False):
+                       lag, station_years=[], load_data=False):
     # Store the station names for which forward simulation is performed
     station_names = ['cdp', 'oas', 'obs', 'ojp', 'rme', 'sap', 'snb', 'sod', 'swa', 'wfj']
     n_stations = len(station_names)
@@ -25,7 +25,7 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
             pred_swe_arr, mse_swe_list = make_predictions(dfs_obs[i], dfs_meteo_agg[i],
-                                                          dfs_mod_delta_swe_all[i], modes)
+                                                          dfs_mod_delta_swe_all[i], lag, modes)
             
             # Append the modelled data MSE to a list
             pred_obs = dfs_mod[i].loc[dfs_obs[i].index].values
@@ -86,7 +86,7 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
 # EXTRA FUNCTIONS
 ####################################################################################
 
-def make_predictions(obs, meteo_agg, mod_delta_swe_all, modes):
+def make_predictions(obs, meteo_agg, mod_delta_swe_all, lag, modes):
     # Initialize a vector for the predicted and observed SWE
     pred_swe_arr = np.zeros((len(modes), len(meteo_agg)))
     mse_swe_list = []
@@ -104,18 +104,31 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, modes):
         if model_name == None:
             print(f'Error: No model available for {mode}.')
             continue
-        
+
+        # Load the model
+        is_lstm = False
         if '.joblib' in model_name:
             model = joblib.load(os.path.join('results', 'models', model_name))
         if '.h5' in model_name:
             model = keras.models.load_model(os.path.join('results', 'models', model_name))
-
+            # Check if the model contains an LSTM layer
+            for layer in model.layers:
+                if isinstance(layer, keras.layers.LSTM):
+                    is_lstm = True
+                    break
+        
         # Define the X according to the model
         if (mode == 'dir_pred') or (mode == 'data_aug'):
-            fwd_X = meteo_agg
+            if is_lstm:
+                fwd_X = preprocess_data_lstm(meteo_agg.values, lag)
+            else:
+                fwd_X = meteo_agg
         elif mode == 'err_corr':
-            fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
-            fwd_X = fwd_X.dropna()
+            if is_lstm:
+                fwd_X = [preprocess_data_lstm(meteo_agg.values, lag), mod_delta_swe_all]
+            else:
+                fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
+        fwd_X = fwd_X.dropna()
 
         for j in range(1,len(meteo_agg)):
             if j % (len(meteo_agg) // 5) == 0:
@@ -138,3 +151,19 @@ def mask_measurements_by_year(df, year):
     start_date = pd.to_datetime(f'{year}-07-01')
     end_date = pd.to_datetime(f'{year + 1}-07-01')
     return (df.index >= start_date) & (df.index < end_date)
+
+def preprocess_data_lstm(X, lag):
+    # Get the shape of the input array
+    shape = X.shape
+
+    # Calculate the number of subarrays along the last axis
+    num_subarrays = shape[-1] // lag
+
+    # Reshape the array by splitting it along the last axis
+    new_shape = shape[:-1] + (num_subarrays, lag)
+    transformed_X = X.reshape(new_shape)
+
+    # Transpose the subarrays to get the desired structure
+    transformed_X = np.transpose(transformed_X, axes=(0, 2, 1))
+
+    return transformed_X

@@ -11,6 +11,7 @@ import os
 import joblib
 
 def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
@@ -65,7 +66,7 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs
     for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
-        elif 'nn' in str(model):
+        elif ('nn' in str(model)) or ('lstm' in str(model)):
             model.model.save(os.path.join(source_folder, f'{mode}.h5'))
     return
 
@@ -148,10 +149,10 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     if mode == 'data_aug':
         losses_rw = np.zeros((len(rel_weight_vals), len(X)))
         for w, rel_weight in enumerate(rel_weight_vals):
+            model_names.append(str(best_model) + f'_rw_{rel_weight}')
             if rel_weight == 1:
                 loss = np.min(mean_loss)
             else:
-                model_names.append(str(best_model) + f'_rw_{rel_weight}')
                 print(f'Relative weight {m+1} of {len(models)}.')
                 for i in range(len(X)):
                     print(f'Train/val split {i+1} of {len(X)}.')
@@ -175,7 +176,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
         # Select the best model
         mean_loss_rw = np.mean(losses_rw, axis=1)
-        best_rw = rel_weight[np.argmin(mean_loss_rw)]
+        best_rw = rel_weight_vals[np.argmin(mean_loss_rw)]
         losses = np.vstack((losses,losses_rw))
         mean_loss = np.append(mean_loss, mean_loss_rw)
 
@@ -199,7 +200,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     else:
         sample_weight = None
 
-    best_model.create_model(X_train[0].shape[1])
+    best_model.create_model(X[0].shape[1])
     history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
                              y_val=y_val.values, sample_weight=sample_weight)
 
@@ -257,9 +258,9 @@ class Model:
             x = sequential_input
             for layer, units in enumerate(self.hyperparameters.get('layers', [128])):
                 if (depth > 1) and (layer + 1 < depth):
-                    x = keras.layers.LSTM(units, activation=activation, return_sequences=True)(x)
+                    x = keras.layers.LSTM(units, return_sequences=True)(x)
                 else:
-                    x = keras.layers.LSTM(units, activation=activation)(x)
+                    x = keras.layers.LSTM(units)(x)
             if self.mode == 'err_corr':
                 extra_var_input = keras.layers.Input(shape=(1,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
