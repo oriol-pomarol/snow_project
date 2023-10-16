@@ -17,31 +17,38 @@ def forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe_all,
     modes = ['dir_pred', 'err_corr', 'data_aug']
 
     if not load_data:
-        # Create an empty list for the predictions and a df for the MSE
+        # Create an empty list for the predictions and a df for the MSE and nNSE
         pred_list = []
         df_mse = pd.DataFrame(columns=modes)
+        df_nnse = pd.DataFrame(columns=modes)
         mod_mse = []
+        mod_nnse = []
 
         for i in range(n_stations):
             print(f"Station {i+1} of {n_stations}.")
-            pred_swe_arr, mse_swe_list = make_predictions(dfs_obs[i], dfs_meteo_agg[i],
-                                                          dfs_mod_delta_swe_all[i], lag, modes)
+            pred_swe_arr, mse_swe_list, nnse_swe_list = make_predictions(dfs_obs[i], dfs_meteo_agg[i],
+                                                                          dfs_mod_delta_swe_all[i], lag, modes)
             
-            # Append the modelled data MSE to a list
+            # Append the modelled data MSE and nNSE to a list
             pred_obs = dfs_mod[i].loc[dfs_obs[i].index].values
             mse_mod_swe = mean_squared_error(dfs_obs[i].values, pred_obs)
             mod_mse.append(mse_mod_swe)
+            mod_nnse.append(1 / (2 - (1 - mse_mod_swe / np.var(dfs_obs[i].values))))
         
-            # Append the predictions and mse to the list/df
+            # Append the predictions, MSE and nNSE to the list/df
             pred_list.append(pred_swe_arr)
             df_mse.loc[i] = mse_swe_list
+            df_nnse.loc[i] = nnse_swe_list
 
         # Add the station names as indices, and the modelled data
         df_mse.index = station_names
         df_mse['modelled'] = mod_mse
+        df_nnse.index = station_names
+        df_nnse['modelled'] = mod_nnse
 
-        # Save the MSE as csv and the predictions with pickle
+        # Save the MSE and nNSE as csv and the predictions with pickle
         df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
+        df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
         with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'wb') as file:
             pickle.dump(pred_list, file)
     else:
@@ -90,6 +97,7 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, lag, modes):
     # Initialize a vector for the predicted and observed SWE
     pred_swe_arr = np.zeros((len(modes), len(meteo_agg)))
     mse_swe_list = []
+    nnse_swe_list = []
 
     # Make the forward simulation
     for i, mode in enumerate(modes):
@@ -122,30 +130,36 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, lag, modes):
             if is_lstm:
                 fwd_X = preprocess_data_lstm(meteo_agg.values, lag)
             else:
-                fwd_X = meteo_agg
+                fwd_X = meteo_agg.values
         elif mode == 'err_corr':
             if is_lstm:
-                fwd_X = [preprocess_data_lstm(meteo_agg.values, lag), mod_delta_swe_all]
+                fwd_X = [preprocess_data_lstm(meteo_agg.values, lag),
+                         mod_delta_swe_all.values]
             else:
-                fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1)
-        fwd_X = fwd_X.dropna()
+                fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1).values
+                fwd_X = fwd_X.dropna()
 
         for j in range(1,len(meteo_agg)):
             if j % (len(meteo_agg) // 5) == 0:
                 print(f"Progress: {j * 100 / len(meteo_agg):.0f}% completed.")
             if '.h5' in model_name:
-                pred_y = model.predict(fwd_X.values[[j-1]], verbose=0)
+                os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+                if isinstance(fwd_X, list):
+                    pred_y = model.predict([element[[j-1]] for element in fwd_X], verbose=0)
+                else:
+                    pred_y = model.predict(fwd_X[[j-1]], verbose=0)
             else:
-                pred_y = model.predict(fwd_X.values[[j-1]])
+                pred_y = model.predict(fwd_X[[j-1]])
             pred_swe_arr[i,j] = max(pred_swe_arr[i,j-1] + pred_y.ravel(), 0)
         
-        # Find the MSE and store it in the list
+        # Find the MSE and nNSE and store them in the lists
         pred_obs = pred_swe_arr[i][np.isin(meteo_agg.index, obs.index)]
         obs_av = obs[np.isin(obs.index, meteo_agg.index)].values
         mse_swe = mean_squared_error(obs_av, pred_obs)
         mse_swe_list.append(mse_swe)
+        nnse_swe_list.append(1 / (2 - (1 - mse_swe / np.var(obs_av))))
 
-    return pred_swe_arr, mse_swe_list
+    return pred_swe_arr, mse_swe_list, nnse_swe_list
 
 def mask_measurements_by_year(df, year):
     start_date = pd.to_datetime(f'{year}-07-01')
