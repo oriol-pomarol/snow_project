@@ -118,7 +118,6 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     for m, model in enumerate(models):
         model_names.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
-        model.create_model(X[0].shape[1])
 
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
@@ -136,6 +135,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
             else:
                 sample_weight = None
 
+            model.create_model(X_train.shape[1])
             model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
                       y_val=y_val.values, sample_weight=sample_weight)
             loss = model.test(X=X[i].values, y=y[i].values)
@@ -156,7 +156,6 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                 print(f'Relative weight {m+1} of {len(models)}.')
                 for i in range(len(X)):
                     print(f'Train/val split {i+1} of {len(X)}.')
-                    best_model.create_model(X[0].shape[1])
                     X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
                     y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
                     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, 
@@ -168,10 +167,10 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                     weight_aug = rel_weight * len_X_obs_train / len_X_aug_train
                     sample_weight = np.concatenate((np.ones(len_X_obs_train),
                                                     np.full(len_X_aug_train, weight_aug)))
-
-                model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                      y_val=y_val.values, sample_weight=sample_weight)
-                loss = model.test(X=X[i].values, y=y[i].values)
+                    best_model.create_model(X_train.shape[1])
+                    model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
+                              y_val=y_val.values, sample_weight=sample_weight)
+                    loss = model.test(X=X[i].values, y=y[i].values)
             losses_rw[w,i] = loss
 
         # Select the best model
@@ -242,6 +241,7 @@ class Model:
         self.model = None  # Clear any existing model
 
     def create_model(self, input_shape):
+        self.model = None  # Clear any existing model
         if self.model_type == 'nn':
             self.model = keras.Sequential()
             self.model.add(keras.layers.Input(shape=input_shape))
@@ -323,8 +323,11 @@ class Model:
                 value_str = "_".join([f"{unit:03d}" for unit in value])
                 param_name = 'ly'
             elif key == 'learning_rate':
-                value_str = f"{value:.4f}"
+                value_str = f"{value:.0e}".replace("-", "_")
                 param_name = 'lr'
+            elif key == 'l2_reg':
+                value_str = f"{value:.1f}"
+                param_name = 'rs'
             else:
                 value_str = str(value)
             model_name += f"_{param_name}{value_str}"
