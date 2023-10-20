@@ -136,8 +136,8 @@ def make_predictions(obs, meteo_agg, mod_delta_swe_all, lag, modes):
                 fwd_X = [preprocess_data_lstm(meteo_agg.values, lag),
                          mod_delta_swe_all.values]
             else:
-                fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1).values
-                fwd_X = fwd_X.dropna()
+                fwd_X = pd.concat([meteo_agg, mod_delta_swe_all], axis=1).dropna()
+                fwd_X = fwd_X.values
 
         for j in range(1,len(meteo_agg)):
             if j % (len(meteo_agg) // 5) == 0:
