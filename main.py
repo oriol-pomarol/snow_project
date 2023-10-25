@@ -4,32 +4,17 @@ import os
 import pandas as pd
 import numpy as np
 from modules.data_preprocessing import data_preprocessing
-from modules.data_loading import data_loading
+from modules.data_load_preprocess import data_loading_and_preprocessing
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
 
 # Record starting run time
 start_time = time.time()
 
-# Read the station data
-stations = pd.read_csv(os.path.join('data', 'Menard_Essery_2019.tab'), 
-                       delimiter='\t', skiprows=35)
+# Load and preprocess data
+dfs_data = data_loading_and_preprocessing()
+print('Successfully loaded and preprocessed the data...')
 
-# Save the in-situ meteo and obs data as separate dataframes
-met_data = stations[10:20].reset_index()
-obs_data = stations[20:30].reset_index()
-
-# Save the longitudes and latitudes of each location
-locations = np.column_stack((obs_data['Latitude'].to_numpy(),
-                             obs_data['Longitude'].to_numpy()))
-
-# Load data
-print('Loading the data...')
-dfs_obs, dfs_met, dfs_mod = data_loading(obs_data, met_data)
-print('Successfully loaded the data...')
-print(type(dfs_obs[0]), type(dfs_met[0]), type(dfs_mod[0]))
-print(dfs_obs[0].shape, dfs_met[0].shape, dfs_mod[0].shape)
-print(dfs_obs[0].head(), dfs_met[0].head(), dfs_mod[0].head())
 # # Preprocess data
 # print('Pre-processing the data...')
 # lag, dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt = \
