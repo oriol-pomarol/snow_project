@@ -4,7 +4,7 @@ import pandas as pd
 from timezonefinder import TimezoneFinder
 from .meteo_preprocess_functions import *
 
-def data_loading_and_preprocessing():
+def data_preprocessing():
 
     # Set the amount of lagged days to add
     lag = 14

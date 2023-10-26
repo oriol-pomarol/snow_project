@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 from modules.data_preprocessing import data_preprocessing
-from modules.data_load_preprocess import data_loading_and_preprocessing
+from modules.data_preprocessing import data_preprocessing
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
 
@@ -12,14 +12,9 @@ from modules.forward_simulation import forward_simulation
 start_time = time.time()
 
 # Load and preprocess data
-dfs_data = data_loading_and_preprocessing()
+print('Loading and preprocess the data...')
+dfs_data = data_preprocessing()
 print('Successfully loaded and preprocessed the data...')
-
-# # Preprocess data
-# print('Pre-processing the data...')
-# lag, dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, dfs_mod_delta_swe_filt = \
-#     data_preprocessing(dfs_obs, dfs_met, dfs_mod, locations)
-# print('Successfully pre-processed the data...')
 
 # # Train the models with the different setups
 # print('Training models...')
