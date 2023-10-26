@@ -10,52 +10,80 @@ import matplotlib.pyplot as plt
 import os
 import joblib
 
-def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+def model_training():
 
-    # Set a random seed for tensorflow
+    # Define what lag value to use
+    lag = 14
+
+    # List of station names
+    station_names = [
+        "cdp",
+        "oas",
+        "obs",
+        "ojp",
+        "rme",
+        "sap",
+        "snb",
+        "sod",
+        "swa",
+        "wfj",
+    ]
+
+    # Load the preprocessed data
+    dict_dfs = {}
+    for station_name in station_names:
+        # Load the data
+        df_station = pd.read_csv(
+            os.path.join(
+                "data",
+                "preprocessed",
+                f"data_daily_lag_{lag}",
+                f"df_{station_name}_lag_{lag}.csv",
+            ), index_col=0
+        )
+
+        # Add the data to the dictionary
+        dict_dfs[station_name] = df_station
+
+
+    # Set a random seed for tensorflow and limit the warnings
     tf.random.set_seed(10)
+    # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    # Choose what dfs can be used for testing and what only for observations
-    dfs_obs_train_idx = [0,4,7]
+    # Define what stations will be used for training, augmenting and testing
+    trng_dfs = [dict_dfs["cdp"], dict_dfs["rme"], dict_dfs["sod"]]
+    augm_dfs = [dict_dfs["oas"], dict_dfs["obs"], dict_dfs["ojp"],
+                dict_dfs["sap"], dict_dfs["snb"], dict_dfs["swa"]]
 
-    # Direct prediction
+    # Filter the biased delta SWE values and drop NaNs
+    trng_dfs = [df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :].dropna()
+                for df in trng_dfs]
+    augm_dfs = [df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :].dropna()
+                for df in augm_dfs]
+
+    # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
-
-    # Find the common indices for the observations
-    common_indices = []
-    for df_meteo, df_obs in zip(dfs_meteo_agg, dfs_obs_delta_swe):
-        common_indices_i = sorted(set(df_meteo.index).intersection(df_obs.index))
-        common_indices.append(common_indices_i)
-
-    # Set the X and y and initialize model selection
-    X_obs = [dfs_meteo_agg[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
-    y_obs = [dfs_obs_delta_swe[j].loc[common_indices[j]] for j in dfs_obs_train_idx]
+    X_obs = [df.iloc[:, :-4] for df in trng_dfs]
+    y_obs = [df.iloc[:, -2] for df in trng_dfs]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
-    # Error correction
+    # Obtain the best model for the error correction setup
     print('Starting error correction training...')
-    X = [pd.concat([dfs_meteo_agg[j].loc[common_indices[j]],
-                    dfs_mod_delta_swe[j].loc[common_indices[j]]], axis=1) \
-                        for j in dfs_obs_train_idx]
-    model_ec = model_selection(X=X, y=y_obs, lag=lag, mode = 'err_corr')
+    X_obs = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in trng_dfs]
+    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
     print('Error correction trained successfully...')
 
-    # Data augmentation
+    # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
+    X_obs = [df.iloc[:, :-4] for df in trng_dfs]
+    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    X_aug = [df.iloc[:, :-4] for df in augm_dfs]
+    y_aug = [df.iloc[:, -2] for df in augm_dfs]
 
-    # Find the common indices for the augmented data
-    common_indices = []
-    for df_meteo, df_obs in zip(dfs_meteo_agg_aug, dfs_mod_delta_swe_aug):
-        common_indices_i = sorted(set(df_meteo.index).intersection(df_obs.index))
-        common_indices.append(common_indices_i)
-
-    # Set the X and y and initialize model selection
-    X_aug = [dfs_meteo_agg_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
-    y_aug = [dfs_mod_delta_swe_aug[j].loc[common_indices[j]] for j in range(len(dfs_meteo_agg_aug))]
-
-    model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug, y_aug=y_aug, mode = 'data_aug')
+    model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
+                               y_aug=y_aug, mode = 'data_aug')
     print('Data augmentation trained successfully...')
 
     # Move any files in the models folder to an old_files folder
@@ -63,7 +91,8 @@ def model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag, dfs
     move_old_files(source_folder)
 
     # Save the models
-    for model, mode in zip([model_dp, model_ec, model_da],['dir_pred', 'err_corr', 'data_aug']):
+    for model, mode in zip([model_dp, model_ec, model_da],
+                           ['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif ('nn' in str(model)) or ('lstm' in str(model)):
@@ -91,7 +120,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     for max_depth in max_depth_vals:
         for max_samples in max_samples_vals:
             model = Model(mode, 'rf', lag)
-            model.set_hyperparameters(max_depth=max_depth, max_samples=max_samples)
+            model.set_hyperparameters(max_depth=max_depth,
+                                      max_samples=max_samples)
             models.append(model)
 
     # Initialize a NN model for each combination of HP
@@ -99,7 +129,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         for learning_rate in learning_rate_vals:
             for l2_reg in l2_reg_vals:
                 model = Model(mode, 'nn', lag)
-                model.set_hyperparameters(layers=layers, learning_rate=learning_rate, l2_reg=l2_reg)
+                model.set_hyperparameters(layers=layers,
+                                          learning_rate=learning_rate,
+                                          l2_reg=l2_reg)
                 models.append(model)
 
     # Initialize a LSTM model for each combination of HP
@@ -108,7 +140,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
             for learning_rate in learning_rate_vals:
                 for l2_reg in l2_reg_vals:
                     model = Model(mode, 'lstm', lag)
-                    model.set_hyperparameters(layers=layers, learning_rate=learning_rate, l2_reg=l2_reg)
+                    model.set_hyperparameters(layers=layers,
+                                              learning_rate=learning_rate,
+                                              l2_reg=l2_reg)
                     models.append(model)
 
     # Perform leave-one-out validation between training stations
@@ -123,14 +157,16 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
             print(f'Train/val split {i+1} of {len(X)}.')
             X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
             y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
-            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=10)
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
+                                                              test_size=0.2, random_state=10)
             if mode == 'data_aug':
                 len_X_obs_train = len(X_train)
                 len_X_aug_train = len(pd.concat(X_aug))
                 X_train = pd.concat([X_train, pd.concat(X_aug)])
                 y_train = pd.concat([y_train, pd.concat(y_aug)])
                 weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
-                sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+                sample_weight = np.concatenate((np.ones(len_X_obs_train), 
+                                                np.full(len_X_aug_train, weight_aug)))
                 
             else:
                 sample_weight = None

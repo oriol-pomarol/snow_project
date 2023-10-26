@@ -11,17 +11,15 @@ from modules.forward_simulation import forward_simulation
 # Record starting run time
 start_time = time.time()
 
-# Load and preprocess data
-print('Loading and preprocess the data...')
-dfs_data = data_preprocessing()
-print('Successfully loaded and preprocessed the data...')
+# # Load and preprocess data
+# print('Loading and preprocess the data...')
+# data_preprocessing()
+# print('Successfully loaded and preprocessed the data...')
 
-# # Train the models with the different setups
-# print('Training models...')
-# model_training(dfs_obs_delta_swe, dfs_meteo_agg, dfs_mod_delta_swe, lag,
-#                [dfs_meteo_agg[i] for i in [1,2,3,5,6,8]], 
-#                [dfs_mod_delta_swe_filt[i] for i in [1,2,3,5,6,8]])
-# print('Successfully trained models...')
+# Train the models with the different setups
+print('Training models...')
+model_training()
+print('Successfully trained models...')
 
 # # Test the models by use of the forward simulation
 # print('Performing forward simulation...')
