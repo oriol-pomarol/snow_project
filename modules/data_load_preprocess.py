@@ -7,14 +7,16 @@ from .meteo_preprocess_functions import *
 def data_loading_and_preprocessing():
 
     # Set the amount of lagged days to add
-    lag = 0
-
-    # List to store the DataFrames
-    list_dfs = []
+    lag = 14
 
     # Read the station data
     df_stations = pd.read_csv(os.path.join('data', 'Menard_Essery_2019.tab'), 
                         delimiter='\t', skiprows=35)
+    
+    # Create folder for the preprocessed data if it doesn't exist
+    folder_path = os.path.join('data', 'preprocessed', f"data_daily_lag_{lag}")
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
 
     # Save the in-situ meteo and observed data as separate dataframes
     data_info_met = df_stations[10:20].reset_index()
@@ -28,7 +30,7 @@ def data_loading_and_preprocessing():
     for station_idx, station_name in enumerate(station_names):
 
         print("Loading and preprocessing data from station "
-              f"{station_idx} of {len(station_names)}...")
+              f"{station_idx + 1} of {len(station_names)}...")
 
         # Get the paths to the files (meteo and observed data)
         filname_met = data_info_met['File name'][station_idx]
@@ -52,7 +54,7 @@ def data_loading_and_preprocessing():
 
         # Pre-process the data (all data)
         df_met_preprocessed = met_preprocessing(df_met, lag, lat_station, lng_station)
-        df_obs_preprocessed = obs_preprocessing(df_obs, station_idx)
+        df_obs_preprocessed = obs_preprocessing(df_obs)
         df_mod_preprocessed = mod_preprocessing(dataset_mod)
 
         # Concatenate the DataFrames
@@ -60,16 +62,21 @@ def data_loading_and_preprocessing():
                              df_obs_preprocessed,
                              df_mod_preprocessed], axis=1)
         
-        # Append the joint DataFrames to the corresponding list
-        list_dfs.append(df_data)
+        # Create a new column that represents delta SWE (observed and model data)
+        df_data['delta_obs_swe'] = df_data['obs_swe'].diff().shift(-1)
+        df_data['delta_mod_swe'] = df_data['mod_swe'].diff().shift(-1)
 
-    return list_dfs
+        # Save the DataFrame
+        df_data.to_csv(os.path.join('data', 'preprocessed', f"data_daily_lag_{lag}",
+                                    f'df_{station_name}_lag_{lag}.csv'))
+
+    return 
 
 ####################################################################################
 # EXTRA FUNCTIONS
 ####################################################################################
 
-def obs_preprocessing(df_obs, station_idx):
+def obs_preprocessing(df_obs):
     # Take the best available SWE measurements at each station and rename them
     if 'snw_auto' in df_obs.columns:
         df_obs = df_obs[['snw_auto']].rename(columns={'snw_auto': 'obs_swe'})
