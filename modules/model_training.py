@@ -63,24 +63,24 @@ def model_training():
 
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
-    X_obs = [df.iloc[:, :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
+    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
-    X_obs = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    X_obs = [df.iloc[:int(len(df)*0.8), :-4].join(df.iloc[:, -1]) for df in trng_dfs]
+    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
     print('Error correction trained successfully...')
 
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
-    X_obs = [df.iloc[:, :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
-    X_aug = [df.iloc[:, :-4] for df in augm_dfs]
-    y_aug = [df.iloc[:, -2] for df in augm_dfs]
+    X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
+    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
+    X_aug = [df.iloc[:int(len(df)*0.8), :-4] for df in augm_dfs]
+    y_aug = [df.iloc[:int(len(df)*0.8), -2] for df in augm_dfs]
 
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
@@ -145,7 +145,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                                               l2_reg=l2_reg)
                     models.append(model)
 
-    # Perform leave-one-out validation between training stations
+    # Perform a single validation with a temporal train/val split
     losses = np.zeros((len(models), len(X)))
     model_names = []
 
@@ -155,10 +155,10 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
         for i in range(len(X)):
             print(f'Train/val split {i+1} of {len(X)}.')
-            X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
-            y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+            X_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in X])
+            y_train = pd.concat([df.iloc[int(len(df)*0.8):] for df in y])
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
-                                                              test_size=0.2, random_state=10)
+                                                              test_size=0.1, random_state=10)
             if mode == 'data_aug':
                 len_X_obs_train = len(X_train)
                 len_X_aug_train = len(pd.concat(X_aug))
@@ -192,10 +192,10 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                 print(f'Relative weight {m+1} of {len(models)}.')
                 for i in range(len(X)):
                     print(f'Train/val split {i+1} of {len(X)}.')
-                    X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
-                    y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+                    X_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in X])
+                    y_train = pd.concat([df.iloc[int(len(df)*0.8):] for df in y])
                     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, 
-                                                                      test_size=0.2, random_state=10)
+                                                                      test_size=0.1, random_state=10)
                     len_X_obs_train = len(X_train)
                     len_X_aug_train = len(pd.concat(X_aug))
                     X_train = pd.concat([X_train, pd.concat(X_aug)])
