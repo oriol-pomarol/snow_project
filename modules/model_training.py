@@ -210,7 +210,6 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
         # Select the best model
         best_rw = rel_weight_vals[np.argmin(losses_rw)]
-        losses = np.vstack((losses,losses_rw))
         losses = np.append(losses, losses_rw)
 
     # Save the model hyperparameters and their losses as a csv
@@ -358,8 +357,8 @@ class Model:
                 value_str = f"{value:.0e}".replace("-", "_")
                 param_name = 'lr'
             elif key == 'l2_reg':
-                value_str = f"{value:.1f}"
-                param_name = 'rs'
+                value_str = f"{value:.0e}".replace("-", "_")
+                param_name = 'rg'
             else:
                 value_str = str(value)
             model_name += f"_{param_name}{value_str}"
