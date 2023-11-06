@@ -252,34 +252,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
 
     # Predict values for training and validation data
-    y_train_pred = best_model.predict(X_train.values)
-    y_val_pred = best_model.predict(X_val.values)
-
-    # Create scatter plots
-    plt.figure(figsize=(10, 5))
-
-    plt.subplot(1, 2, 1)
-    plt.scatter(y_train.values, y_train_pred)
-    plt.xlabel('True Values')
-    plt.ylabel('Predicted Values')
-    plt.title('Train Data')
-
-    plt.subplot(1, 2, 2)
-    plt.scatter(y_val.values, y_val_pred)
-    plt.xlabel('True Values')
-    plt.ylabel('Predicted Values')
-    plt.title('Validation Data')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Create dataframes for the true and predicted values
-    train_df = pd.DataFrame({'TrueValues': y_train.values, 'PredictedValues': y_train_pred})
-    val_df = pd.DataFrame({'TrueValues': y_val.values, 'PredictedValues': y_val_pred})
-
-    # Save the dataframes to csv
-    train_df.to_csv('train_true_vs_predicted.csv', index=False)
-    val_df.to_csv('val_true_vs_predicted.csv', index=False)
+    y_train_pred = best_model.predict(X_train.values).ravel()
+    y_val_pred = best_model.predict(X_val.values).ravel()
 
     # Create scatter plots
     fig = plt.figure(figsize=(18, 6))
@@ -295,7 +269,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     ], N=256)
 
     ax = fig.add_subplot(1, 2, 1, projection='scatter_density')
-    density = ax.scatter_density(y_train.values, y_train_pred, dpi=20, cmap=white_viridis)
+    density = ax.scatter_density(y_train.values, y_train_pred, cmap=white_viridis)
     fig.colorbar(density, label='Number of points per pixel')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
@@ -306,7 +280,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
 
     ax = fig.add_subplot(1, 2, 2, projection='scatter_density')
-    density = ax.scatter_density(y_val.values, y_val_pred, dpi=20, cmap=white_viridis)
+    density = ax.scatter_density(y_val.values, y_val_pred, cmap=white_viridis)
     fig.colorbar(density, label='Number of points per pixel')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
