@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
-import mpl_scatter_density
+from sklearn.metrics import r2_score
 import os
 import joblib
 
@@ -269,29 +269,34 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     ], N=256)
 
     ax = fig.add_subplot(1, 2, 1)
+    ax.set_aspect('equal', adjustable='box')
+    min_val, max_val = np.percentile(np.concatenate([y_train, y_train_pred]), [1, 99])
     density = ax.hist2d(y_train.values, y_train_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
     fig.colorbar(density[3], ax=ax, label='Number of points per bin')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
     plt.title('Train Data')
-    min_val, max_val = np.percentile(np.concatenate([y_train, y_train_pred]), [1, 99])
-    plt.xlim([min_val, max_val])
-    plt.ylim([min_val, max_val])
     plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
 
+    # Calculate R-squared value and add it to the plot
+    r2 = r2_score(y_train, y_train_pred)
+    ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
+            verticalalignment='top')
+
     ax = fig.add_subplot(1, 2, 2)
+    ax.set_aspect('equal', adjustable='box')
+    min_val, max_val = np.percentile(np.concatenate([y_val, y_val_pred]), [1, 99])
     density = ax.hist2d(y_val.values, y_val_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
     fig.colorbar(density[3], ax=ax, label='Number of points per bin')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
     plt.title('Validation Data')
-    min_val, max_val = np.percentile(np.concatenate([y_val, y_val_pred]), [1, 99])
-    plt.xlim([min_val, max_val])
-    plt.ylim([min_val, max_val])
     plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
 
-    # Set the same range for x and y axis
-    plt.gca().set_aspect('equal', adjustable='box')
+    # Calculate R-squared value and add it to the plot
+    r2 = r2_score(y_val, y_val_pred)
+    ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
+            verticalalignment='top')
 
     plt.tight_layout()
     plt.savefig(os.path.join('results', f'true_vs_pred_{mode}.png'))
