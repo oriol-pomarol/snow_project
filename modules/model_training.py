@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import mpl_scatter_density
 import os
 import joblib
 
@@ -278,6 +280,55 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     # Save the dataframes to csv
     train_df.to_csv('train_true_vs_predicted.csv', index=False)
     val_df.to_csv('val_true_vs_predicted.csv', index=False)
+
+    # Create scatter plots
+    fig = plt.figure(figsize=(18, 6))
+
+    white_viridis = LinearSegmentedColormap.from_list('white_viridis', [
+        (0, '#ffffff'),
+        (1e-20, '#440053'),
+        (0.2, '#404388'),
+        (0.4, '#2a788e'),
+        (0.6, '#21a784'),
+        (0.8, '#78d151'),
+        (1, '#fde624'),
+    ], N=256)
+
+    ax = fig.add_subplot(1, 2, 1, projection='scatter_density')
+    density = ax.scatter_density(y_train.values, y_train_pred, dpi=20, cmap=white_viridis)
+    fig.colorbar(density, label='Number of points per pixel')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Train Data')
+    min_val, max_val = np.percentile(np.concatenate([y_train, y_train_pred]), [1, 99])
+    plt.xlim([min_val, max_val])
+    plt.ylim([min_val, max_val])
+    plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
+
+    ax = fig.add_subplot(1, 2, 2, projection='scatter_density')
+    density = ax.scatter_density(y_val.values, y_val_pred, dpi=20, cmap=white_viridis)
+    fig.colorbar(density, label='Number of points per pixel')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Validation Data')
+    min_val, max_val = np.percentile(np.concatenate([y_val, y_val_pred]), [1, 99])
+    plt.xlim([min_val, max_val])
+    plt.ylim([min_val, max_val])
+    plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
+
+    # Set the same range for x and y axis
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join('results', f'true_vs_pred_{mode}.png'))
+    
+    # Create dataframes for the true and predicted values
+    train_df = pd.DataFrame({'TrueValues': y_train.values, 'PredictedValues': y_train_pred})
+    val_df = pd.DataFrame({'TrueValues': y_val.values, 'PredictedValues': y_val_pred})
+
+    # Save the dataframes to csv
+    train_df.to_csv(os.path.join('results', f'true_vs_pred_{mode}.csv'), index=False)
+    val_df.to_csv(os.path.join('results', f'true_vs_pred_{mode}.csv'), index=False)
 
     return best_model
 
