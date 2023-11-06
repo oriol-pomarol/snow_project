@@ -249,6 +249,36 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         plt.ylabel('MSE')
         plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
 
+    # Predict values for training and validation data
+    y_train_pred = best_model.predict(X_train.values)
+    y_val_pred = best_model.predict(X_val.values)
+
+    # Create scatter plots
+    plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.scatter(y_train.values, y_train_pred)
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Train Data')
+
+    plt.subplot(1, 2, 2)
+    plt.scatter(y_val.values, y_val_pred)
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Validation Data')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Create dataframes for the true and predicted values
+    train_df = pd.DataFrame({'TrueValues': y_train.values, 'PredictedValues': y_train_pred})
+    val_df = pd.DataFrame({'TrueValues': y_val.values, 'PredictedValues': y_val_pred})
+
+    # Save the dataframes to csv
+    train_df.to_csv('train_true_vs_predicted.csv', index=False)
+    val_df.to_csv('val_true_vs_predicted.csv', index=False)
+
     return best_model
 
 ####################################################################################
@@ -329,7 +359,19 @@ class Model:
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
             return None
-    
+
+    def predict(self, X):
+        if self.model_type == 'lstm':
+            if self.mode == 'err_corr':
+                X_mod = X[:,-1]
+                X = X[:,:-1]
+            X = preprocess_data_lstm(X, self.lag)
+        if self.model_type == 'lstm' and self.mode == 'err_corr':
+            y_pred = self.model.predict([X,X_mod])
+        else:
+            y_pred = self.model.predict(X)
+        return y_pred
+        
     def test(self, X, y):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
