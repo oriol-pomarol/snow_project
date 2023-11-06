@@ -268,9 +268,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         (1, '#fde624'),
     ], N=256)
 
-    ax = fig.add_subplot(1, 2, 1, projection='scatter_density')
-    density = ax.scatter_density(y_train.values, y_train_pred, cmap=white_viridis)
-    fig.colorbar(density, label='Number of points per pixel')
+    ax = fig.add_subplot(1, 2, 1)
+    density = ax.hist2d(y_train.values, y_train_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
+    fig.colorbar(density[3], ax=ax, label='Number of points per bin')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
     plt.title('Train Data')
@@ -279,9 +279,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     plt.ylim([min_val, max_val])
     plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
 
-    ax = fig.add_subplot(1, 2, 2, projection='scatter_density')
-    density = ax.scatter_density(y_val.values, y_val_pred, cmap=white_viridis)
-    fig.colorbar(density, label='Number of points per pixel')
+    ax = fig.add_subplot(1, 2, 2)
+    density = ax.hist2d(y_val.values, y_val_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
+    fig.colorbar(density[3], ax=ax, label='Number of points per bin')
     plt.xlabel('True Values')
     plt.ylabel('Predicted Values')
     plt.title('Validation Data')
