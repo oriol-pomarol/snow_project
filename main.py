@@ -8,21 +8,23 @@ from modules.forward_simulation import forward_simulation
 # Record starting run time
 start_time = time.time()
 
-# Load and preprocess data
-print('Loading and preprocess the data...')
-data_preprocessing()
-print('Successfully loaded and preprocessed the data...')
+# # Load and preprocess data
+# print('Loading and preprocess the data...')
+# data_preprocessing()
+# print('Successfully loaded and preprocessed the data...')
 
-# Train the models with the different setups
-print('Training models...')
-model_training()
-print('Successfully trained models...')
+# # Train the models with the different setups
+# print('Training models...')
+# model_training()
+# print('Successfully trained models...')
 
-# # Test the models by use of the forward simulation
-# print('Performing forward simulation...')
-# forward_simulation(dfs_obs, dfs_mod, dfs_meteo_agg, dfs_mod_delta_swe,
-#                    lag, station_years=['cdp_2002','rme_2002', 'wfj_2002'])
-# print('Successfully performed forward simulation...')
+# Test the models by use of the forward simulation
+print('Performing forward simulation...')
+forward_simulation()
+print('Successfully performed forward simulation...')
+
+
+station_years=['cdp_2002','rme_2002', 'wfj_2002']
 
 # Print execution time
 end_time = time.time()
