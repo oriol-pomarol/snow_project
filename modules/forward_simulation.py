@@ -46,35 +46,36 @@ def forward_simulation():
         list_models.append(Model(mode, model, model_type, lag))
 
     # Simulate SWE for each station
-    for station_idx, station_name in enumerate(station_names):
+    for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
         print(f"Simulating station {station_idx+1} of {len(station_names)}.")
 
         # Initialize a vector for the predicted SWE
-        drop_cols_X = ["obs_swe", "delta_obs_swe"]
-        df_station_wo_obs = df_station.drop(drop_cols_X, axis=1).dropna()
-        df_station_X = df_station_wo_obs.drop("mod_swe", axis=1)
+        drop_cols_X = ["obs_swe", "delta_obs_swe", "mod_swe"]
+        df_station_X = df_station.drop(drop_cols_X, axis=1).dropna()
         pred_swe_arr = np.zeros((len(list_models), len(df_station_X)))
 
         for model_idx, model in enumerate(list_models):
-            print(f"Simulating {mode} mode.")
+            print(f"Mode {model_idx + 1} of {len(list_models)}.")
 
-            for row_idx, row in enumerate(df_station_X.iterrows()):
+            for row_idx, row in enumerate(df_station_X.itertuples(index=False,
+                                                                  name=None)):
                 # Print progress
                 if row_idx % (len(df_station_X) // 5) == 0:
                     progress_pct = row_idx * 100 / len(df_station_X)
                     print(f"Progress: {progress_pct:.0f}% completed.")
                 
                 # Predict the next SWE value
-                pred_y = model.predict(row, mode=mode)
+                pred_y = model.predict(row)
                 pred_swe = max(pred_swe_arr[model_idx,row_idx-1] + pred_y, 0)
                 pred_swe_arr[model_idx, row_idx] = pred_swe
     
-        # Save the simulated SWE as a transposed dataframe
-        df_swe = pd.DataFrame(pred_swe_arr.T, index=df_station_wo_obs.index, 
+        # Save the simulated SWE as a dataframe
+        df_swe = pd.DataFrame(pred_swe_arr.T, index=df_station_X.index, 
                               columns=['dir_pred', 'err_corr', 'data_aug'])
-        # Append the mod and obs SWE to the df
-        df_swe['mod_pred'] = df_station_wo_obs['mod_pred']
-        df_swe.to_csv(os.path.join('results', f'df_{station_name}_sim_swe.csv'))
+        save_path = os.path.join('results', 'simulated_swe')
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        df_swe.to_csv(os.path.join(save_path, f'df_{station_name}_sim_swe.csv'))
 
     return
 
@@ -139,22 +140,23 @@ class Model:
     def get_mode(self):
         return self.mode
         
-    def predict(self, df_X_row, mode):
+    def predict(self, tuple_X_row):
 
-        # Preprocess the data for the dir_pred and err_corr modes
-        if (mode == 'dir_pred') or (mode == 'err_corr'):
-            X_row = df_X_row.drop('mod_swe').values
+        # Preprocess the data for the dir_pred and data_aug modes
+        if (self.mode == 'dir_pred') or (self.mode == 'data_aug'):
+            X_row = np.array(tuple_X_row[:-1])
             if self.model_type == 'lstm':
                 X_row = preprocess_data_lstm(X_row, self.lag)
+            X_row = X_row.reshape(1, -1)
 
-        # Preprocess the data for the data_aug mode
-        elif mode == 'data_aug':
+        # Preprocess the data for the err_corr mode
+        elif self.mode == 'err_corr':
             if self.model_type == 'lstm':
-                meteo_data = df_X_row.drop('mod_swe').values
+                meteo_data = np.array(tuple_X_row[:-1])
                 meteo_X = preprocess_data_lstm(meteo_data, self.lag)
-                X_row = [meteo_X, df_X_row['mod_swe'].values]
+                X_row = [meteo_X, tuple_X_row[-1]]
             else:
-                X_row = df_X_row.values
+                X_row = np.array(tuple_X_row).reshape(1, -1)
 
         # Return the predicted delta SWE for this row
         y_pred = self.model.predict(X_row).ravel()
