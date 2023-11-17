@@ -4,6 +4,7 @@ from modules.data_preprocessing import data_preprocessing
 from modules.data_preprocessing import data_preprocessing
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
+from modules.simulation_analysis import simulation_analysis
 
 # Record starting run time
 start_time = time.time()
@@ -18,13 +19,15 @@ start_time = time.time()
 # model_training()
 # print('Successfully trained models...')
 
-# Test the models by use of the forward simulation
-print('Performing forward simulation...')
-forward_simulation()
-print('Successfully performed forward simulation...')
+# # Simulate SWE using ML for each station
+# print('Performing forward simulation...')
+# forward_simulation()
+# print('Successfully performed forward simulation...')
 
-
-station_years=['cdp_2002','rme_2002', 'wfj_2002']
+# Analyze the simulation results
+print('Analyzing simulation results...')
+simulation_analysis(station_years=['cdp_all','rme_all', 'sod_all'])
+print('Successfully analyzed simulation results...')
 
 # Print execution time
 end_time = time.time()
