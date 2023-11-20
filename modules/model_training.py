@@ -99,6 +99,15 @@ def model_training():
             joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
         elif ('nn' in str(model)) or ('lstm' in str(model)):
             model.model.save(os.path.join(source_folder, f'{mode}.h5'))
+
+    # Save the train_test split dates as a csv
+    train_test_split_obs = [int(len(df)*0.8) for df in trng_dfs]
+    train_test_split_aug = [int(len(df)*0.8) for df in augm_dfs]
+    train_test_split = train_test_split_obs + train_test_split_aug
+    train_test_split_stations = ['cdp', 'rme', 'sod', 'oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
+    df_train_test_split = pd.DataFrame({'train_test_split':train_test_split},
+                                       index=train_test_split_stations)
+    df_train_test_split.to_csv(os.path.join('results', 'train_test_split_dates.csv'))
     return
 
 ####################################################################################
@@ -155,10 +164,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         model_names.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
 
-        X_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in X])
-        y_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in y])
-        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
-                                                            test_size=0.1, random_state=10)
+        X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
+                                                          test_size=0.2, random_state=10)
         if mode == 'data_aug':
             len_X_obs_train = len(X_train)
             len_X_aug_train = len(pd.concat(X_aug))
@@ -173,10 +180,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
         model.create_model(X_train.shape[1])
         model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                    y_val=y_val.values, sample_weight=sample_weight)
-        X_test = pd.concat([df.iloc[int(len(df)*0.8):] for df in X])
-        y_test = pd.concat([df.iloc[int(len(df)*0.8):] for df in y])
-        loss = model.test(X=X_test.values, y=y_test.values)
+                  y_val=y_val.values, sample_weight=sample_weight, early_stopping=True)
+        loss = model.test(X=X_val.values, y=y_val.values)
         losses[m] = loss
 
     # Select the best model
@@ -191,10 +196,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                 loss = np.min(losses)
             else:
                 print(f'Relative weight {m+1} of {len(models)}.')
-                X_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in X])
-                y_train = pd.concat([df.iloc[:int(len(df)*0.8)] for df in y])
-                X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, 
-                                                                    test_size=0.1, random_state=10)
+                X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
+                                                          test_size=0.2, random_state=10)
                 len_X_obs_train = len(X_train)
                 len_X_aug_train = len(pd.concat(X_aug))
                 X_train = pd.concat([X_train, pd.concat(X_aug)])
@@ -204,10 +207,8 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                                                 np.full(len_X_aug_train, weight_aug)))
                 best_model.create_model(X_train.shape[1])
                 model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                            y_val=y_val.values, sample_weight=sample_weight)
-                X_test = pd.concat([df.iloc[int(len(df)*0.8):] for df in X])
-                y_test = pd.concat([df.iloc[int(len(df)*0.8):] for df in y])
-                model.test(X=X_test.values, y=y_test.values)
+                          y_val=y_val.values, sample_weight=sample_weight)
+                loss = model.test(X=X_val.values, y=y_val.values)
             losses_rw[w] = loss
 
         # Select the best model
@@ -219,9 +220,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     df_losses.set_index('HP', inplace=True)
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
-    # Train the best model on all the data
-    X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
-                                                      test_size=0.2, random_state=10)
+    # Train the best model on all train/val data
+    X_train, y_train = pd.concat(X), pd.concat(y)
+
     if mode == 'data_aug':
         len_X_obs_train = len(X_train)
         len_X_aug_train = len(pd.concat(X_aug))
@@ -322,6 +323,8 @@ class Model:
             self.mode = mode.lower()
             self.lag = lag
             self.model = None
+            if (self.model_type == 'nn') or (self.model_type == 'lstm'):
+                self.epochs = 100
         else:
             raise ValueError("Invalid model setup or model type.")
         
@@ -368,7 +371,7 @@ class Model:
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
 
-    def fit(self, X, y, X_val, y_val, **kwargs):
+    def fit(self, X, y, X_val, y_val, early_stopping=False, **kwargs):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
                 X_mod = X[:,-1]
@@ -379,12 +382,14 @@ class Model:
             X_val = preprocess_data_lstm(X_val, self.lag)      
         if self.model_type in ['nn', 'lstm']:
             # Define early stopping callback
-            early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)
+            if early_stopping:
+                callbacks = [EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)]
             if self.model_type == 'lstm' and self.mode == 'err_corr':
-                history = self.model.fit([X,X_mod], y, epochs=100, validation_data=([X_val,X_val_mod], y_val),
-                                         callbacks=[early_stopping], **kwargs)
+                history = self.model.fit([X,X_mod], y, epochs=self.epochs, validation_data=([X_val,X_val_mod], y_val),
+                                         callbacks=callbacks, **kwargs)
             else:
-                history = self.model.fit(X, y, epochs=100, validation_data=(X_val, y_val), callbacks=[early_stopping], **kwargs)
+                history = self.model.fit(X, y, epochs=self.epochs, validation_data=(X_val, y_val), callbacks=callbacks, **kwargs)
+            self.epochs = len(history.history['loss'])
             return history
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)

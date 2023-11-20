@@ -9,24 +9,24 @@ from modules.simulation_analysis import simulation_analysis
 # Record starting run time
 start_time = time.time()
 
-# # Load and preprocess data
-# print('Loading and preprocess the data...')
-# data_preprocessing()
-# print('Successfully loaded and preprocessed the data...')
+# Load and preprocess data
+print('Loading and preprocess the data...')
+data_preprocessing()
+print('Successfully loaded and preprocessed the data...')
 
-# # Train the models with the different setups
-# print('Training models...')
-# model_training()
-# print('Successfully trained models...')
+# Train the models with the different setups
+print('Training models...')
+model_training()
+print('Successfully trained models...')
 
-# # Simulate SWE using ML for each station
-# print('Performing forward simulation...')
-# forward_simulation()
-# print('Successfully performed forward simulation...')
+# Simulate SWE using ML for each station
+print('Performing forward simulation...')
+forward_simulation()
+print('Successfully performed forward simulation...')
 
 # Analyze the simulation results
 print('Analyzing simulation results...')
-simulation_analysis() #station_years=['cdp_all','rme_all', 'sod_all']
+simulation_analysis()
 print('Successfully analyzed simulation results...')
 
 # Print execution time
