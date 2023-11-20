@@ -26,7 +26,7 @@ start_time = time.time()
 
 # Analyze the simulation results
 print('Analyzing simulation results...')
-simulation_analysis(station_years=['cdp_all','rme_all', 'sod_all'])
+simulation_analysis() #station_years=['cdp_all','rme_all', 'sod_all']
 print('Successfully analyzed simulation results...')
 
 # Print execution time

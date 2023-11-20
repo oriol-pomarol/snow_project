@@ -45,10 +45,30 @@ def simulation_analysis(station_years=[]):
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
-    modes = ['dir_pred', 'err_corr', 'data_aug']
+    # Create an empty df for the MSE and nNSE
+    sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
+    df_mse = pd.DataFrame(columns=sim_modes)
+    df_nnse = pd.DataFrame(columns=sim_modes)
 
-    print('Plotting the results...')
-    # Plot the results      
+    # Find the MSE and nNSE and store them in the lists
+    for station_name in station_names:
+        df_station_clean = dict_dfs[station_name].dropna()
+        obs_swe = df_station_clean['obs_swe']
+        mse_station = [mean_squared_error(obs_swe, df_station_clean[mode])
+                       for mode in sim_modes]
+        nnse_station = [1 / (2 - (1 - mse / np.var(obs_swe)))
+                        for mse in mse_station]
+
+        # Append the predictions, MSE and nNSE to the df
+        df_mse.loc[station_name] = mse_station
+        df_nnse.loc[station_name] = nnse_station
+
+        # Save the MSE and nNSE as csv and the predictions with pickle
+        df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
+        df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
+
+    # Plot the results
+    print('Plotting the results...')  
     for station_year in station_years:
         station_name, year = station_year.split("_")
         if station_name == 'all':
@@ -76,42 +96,9 @@ def simulation_analysis(station_years=[]):
             ax.legend()
             plt.savefig(os.path.join('results', f'fwd_sim_{station_year}.png'))
 
-    # # Create an empty list for the predictions and a df for the MSE and nNSE
-    # df_mse = pd.DataFrame(columns=modes)
-    # df_nnse = pd.DataFrame(columns=modes)
-
-# # Find the MSE and nNSE and store them in the lists
-# pred_obs = pred_swe_arr[i][np.isin(meteo_agg.index, obs.index)]
-# obs_av = obs[np.isin(obs.index, meteo_agg.index)].values
-# mse_swe = mean_squared_error(obs_av, pred_obs)
-# mse_swe_list.append(mse_swe)
-# nnse_swe_list.append(1 / (2 - (1 - mse_swe / np.var(obs_av))))
-
-# # Append the modelled data MSE and nNSE to a list
-# pred_obs = dfs_mod[i].loc[dfs_obs[i].index].values
-# mse_mod_swe = mean_squared_error(dfs_obs[i].values, pred_obs)
-# mod_mse.append(mse_mod_swe)
-# mod_nnse.append(1 / (2 - (1 - mse_mod_swe / np.var(dfs_obs[i].values))))
-
-# # Append the predictions, MSE and nNSE to the list/df
-# pred_list.append(pred_swe_arr)
-# df_mse.loc[i] = mse_swe_list
-# df_nnse.loc[i] = nnse_swe_list
-
-# # Add the modelled data
-# df_mse['modelled'] = mod_mse
-# df_nnse['modelled'] = mod_nnse
-
-# # Save the MSE and nNSE as csv and the predictions with pickle
-# df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
-# df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
-# with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'wb') as file:
-#     pickle.dump(pred_list, file)
-# else:
-# with open(os.path.join('results', 'fwd_sim_pred.pkl'), 'rb') as file:
-#     pred_list = pickle.load(file)
-
-
+###############################################################################
+# EXTRA FUNCTIONS
+###############################################################################
 
 def mask_measurements_by_year(df, year):
     if year == 'all':
