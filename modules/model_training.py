@@ -58,11 +58,15 @@ def model_training():
                 dict_dfs["sap"], dict_dfs["snb"], dict_dfs["swa"]]
 
     # Filter the biased delta SWE values and drop NaNs
-    trng_dfs = [df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :].dropna()
-                for df in trng_dfs]
-    augm_dfs = [df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :].dropna()
-                for df in augm_dfs]
+    for i, df in enumerate(trng_dfs):
+        df = df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :]
+        trng_dfs[i] = df.dropna()
 
+    for i, df in enumerate(augm_dfs):
+        df = df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :]
+        subset_na = df.columns.difference(['obs_swe', 'delta_obs_swe'])
+        augm_dfs[i] = df.dropna(subset=subset_na)
+    
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
     X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
@@ -81,8 +85,8 @@ def model_training():
     print('Starting data augmentation training...')
     X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
     y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
-    X_aug = [df.iloc[:int(len(df)*0.8), :-4] for df in augm_dfs]
-    y_aug = [df.iloc[:int(len(df)*0.8), -2] for df in augm_dfs]
+    X_aug = [df.iloc[:, :-3] for df in augm_dfs]
+    y_aug = [df.iloc[:, -1] for df in augm_dfs]
 
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
@@ -101,8 +105,8 @@ def model_training():
             model.model.save(os.path.join(source_folder, f'{mode}.h5'))
 
     # Save the train_test split dates as a csv
-    train_test_split_obs = [int(len(df)*0.8) for df in trng_dfs]
-    train_test_split_aug = [int(len(df)*0.8) for df in augm_dfs]
+    train_test_split_obs = [df.index[int(len(df)*0.8)] for df in trng_dfs]
+    train_test_split_aug = [df.index[int(len(df)*0.8)] for df in augm_dfs]
     train_test_split = train_test_split_obs + train_test_split_aug
     train_test_split_stations = ['cdp', 'rme', 'sod', 'oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
     df_train_test_split = pd.DataFrame({'train_test_split':train_test_split},
@@ -180,7 +184,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
         model.create_model(X_train.shape[1])
         model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                  y_val=y_val.values, sample_weight=sample_weight, early_stopping=True)
+                  y_val=y_val.values, sample_weight=sample_weight)
         loss = model.test(X=X_val.values, y=y_val.values)
         losses[m] = loss
 
@@ -190,24 +194,25 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     # If in data augmentation, tune the relative weight of the obs/mod data
     if mode == 'data_aug':
         losses_rw = np.zeros(len(rel_weight_vals))
+        X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
+                                                          test_size=0.2, random_state=10)
+        X_train = pd.concat([X_train, pd.concat(X_aug)])
+        y_train = pd.concat([y_train, pd.concat(y_aug)])
+        len_X_obs_train = len(X_train)
+        len_X_aug_train = len(pd.concat(X_aug))
         for w, rel_weight in enumerate(rel_weight_vals):
             model_names.append(str(best_model) + f'_rw_{rel_weight}')
             if rel_weight == 1:
                 loss = np.min(losses)
             else:
-                print(f'Relative weight {m+1} of {len(models)}.')
-                X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
-                                                          test_size=0.2, random_state=10)
-                len_X_obs_train = len(X_train)
-                len_X_aug_train = len(pd.concat(X_aug))
-                X_train = pd.concat([X_train, pd.concat(X_aug)])
-                y_train = pd.concat([y_train, pd.concat(y_aug)])
+                print(f'Relative weight {w+1} of {len(models)}.')
                 weight_aug = rel_weight * len_X_obs_train / len_X_aug_train
                 sample_weight = np.concatenate((np.ones(len_X_obs_train),
                                                 np.full(len_X_aug_train, weight_aug)))
                 best_model.create_model(X_train.shape[1])
-                model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                          y_val=y_val.values, sample_weight=sample_weight)
+                model.fit(X=X_train.values, y=y_train.values, 
+                          X_val=X_val.values, y_val=y_val.values,
+                          sample_weight=sample_weight)
                 loss = model.test(X=X_val.values, y=y_val.values)
             losses_rw[w] = loss
 
@@ -229,13 +234,14 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         X_train = pd.concat([X_train, pd.concat(X_aug)])
         y_train = pd.concat([y_train, pd.concat(y_aug)])
         weight_aug = best_rw * len_X_obs_train / len_X_aug_train
-        sample_weight = np.concatenate((np.ones(len_X_obs_train), np.full(len_X_aug_train, weight_aug)))
+        sample_weight = np.concatenate((np.ones(len_X_obs_train),
+                                        np.full(len_X_aug_train, weight_aug)))
     else:
         sample_weight = None
 
     best_model.create_model(X[0].shape[1])
-    history = best_model.fit(X=X_train.values, y=y_train.values, X_val=X_val.values,
-                             y_val=y_val.values, sample_weight=sample_weight)
+    history = best_model.fit(X=X_train.values, y=y_train.values,
+                             sample_weight=sample_weight)
 
     if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
         # Save the training history
@@ -254,10 +260,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
     # Predict values for training and validation data
     y_train_pred = best_model.predict(X_train.values).ravel()
-    y_val_pred = best_model.predict(X_val.values).ravel()
 
-    # Create scatter plots
-    fig = plt.figure(figsize=(18, 6))
+    # Create scatter plot for training data
+    fig = plt.figure(figsize=(12, 7))
 
     white_viridis = LinearSegmentedColormap.from_list('white_viridis', [
         (0, '#ffffff'),
@@ -269,7 +274,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         (1, '#fde624'),
     ], N=256)
 
-    ax = fig.add_subplot(1, 2, 1)
+    ax = fig.add_subplot(1, 1, 1)
     ax.set_aspect('equal', adjustable='box')
     min_val, max_val = np.percentile(np.concatenate([y_train, y_train_pred]), [1, 99])
     density = ax.hist2d(y_train.values, y_train_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
@@ -284,31 +289,12 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
             verticalalignment='top')
 
-    ax = fig.add_subplot(1, 2, 2)
-    ax.set_aspect('equal', adjustable='box')
-    min_val, max_val = np.percentile(np.concatenate([y_val, y_val_pred]), [1, 99])
-    density = ax.hist2d(y_val.values, y_val_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
-    fig.colorbar(density[3], ax=ax, label='Number of points per bin')
-    plt.xlabel('True Values')
-    plt.ylabel('Predicted Values')
-    plt.title('Validation Data')
-    plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
-
-    # Calculate R-squared value and add it to the plot
-    r2 = r2_score(y_val, y_val_pred)
-    ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
-            verticalalignment='top')
-
     plt.tight_layout()
-    plt.savefig(os.path.join('results', f'true_vs_pred_{mode}.png'))
+    plt.savefig(os.path.join('results', f'pred_vs_true_{mode}.png'))
     
-    # Create dataframes for the true and predicted values
+    # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train.values, 'PredictedValues': y_train_pred})
-    val_df = pd.DataFrame({'TrueValues': y_val.values, 'PredictedValues': y_val_pred})
-
-    # Save the dataframes to csv
-    train_df.to_csv(os.path.join('results', f'true_vs_pred_{mode}.csv'), index=False)
-    val_df.to_csv(os.path.join('results', f'true_vs_pred_{mode}.csv'), index=False)
+    train_df.to_csv(os.path.join('results', f'pred_vs_true_{mode}.csv'), index=False)
 
     return best_model
 
@@ -371,7 +357,7 @@ class Model:
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
 
-    def fit(self, X, y, X_val, y_val, early_stopping=False, **kwargs):
+    def fit(self, X, y, X_val=None, y_val=None, **kwargs):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
                 X_mod = X[:,-1]
@@ -382,7 +368,8 @@ class Model:
             X_val = preprocess_data_lstm(X_val, self.lag)      
         if self.model_type in ['nn', 'lstm']:
             # Define early stopping callback
-            if early_stopping:
+            callbacks = []
+            if X_val and y_val:
                 callbacks = [EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)]
             if self.model_type == 'lstm' and self.mode == 'err_corr':
                 history = self.model.fit([X,X_mod], y, epochs=self.epochs, validation_data=([X_val,X_val_mod], y_val),
