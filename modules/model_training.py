@@ -71,14 +71,22 @@ def model_training():
     print('Starting direct prediction training...')
     X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
     y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
+    X_test = [df.iloc[int(len(df)*0.8):, :-4] for df in trng_dfs]
+    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
+    plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
+                      X_test=X_test, y_test=y_test, mode='dir_pred')
     print('Direct prediction trained successfully...')
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
     X_obs = [df.iloc[:int(len(df)*0.8), :-4].join(df.iloc[:, -1]) for df in trng_dfs]
     y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
+    X_test = [df.iloc[int(len(df)*0.8):, :-4].join(df.iloc[:, -1]) for df in trng_dfs]
+    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
+    plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
+                      X_test=X_test, y_test=y_test, mode='err_corr')
     print('Error correction trained successfully...')
 
     # Obtain the best model for the data augmentation setup
@@ -87,9 +95,13 @@ def model_training():
     y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
     X_aug = [df.iloc[:, :-3] for df in augm_dfs]
     y_aug = [df.iloc[:, -1] for df in augm_dfs]
-
+    X_test = [df.iloc[int(len(df)*0.8):, :-4] for df in trng_dfs]
+    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
+    plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
+                      X_test=X_test, y_test=y_test, mode='data_aug',
+                      X_aug=X_aug, y_aug=y_aug)
     print('Data augmentation trained successfully...')
 
     # Move any files in the models folder to an old_files folder
@@ -291,8 +303,24 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         plt.ylabel('MSE')
         plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
 
-    # Predict values for training and validation data
-    y_train_pred = best_model.predict(X_train_arr).ravel()
+    return best_model
+
+###############################################################################
+
+def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode, X_aug=None, y_aug=None):
+    X_train_arr = pd.concat(X_train).values
+    y_train_arr = pd.concat(y_train).values
+    X_test_arr = pd.concat(X_test).values
+    y_test_arr = pd.concat(y_test).values
+    
+    # Predict values for training and test data
+    y_train_pred = model.predict(X_train_arr).ravel()
+    y_test_pred = model.predict(X_test_arr).ravel()
+
+    if mode == 'data_aug':
+        X_aug_arr = pd.concat(X_aug).values
+        y_aug_arr = pd.concat(y_aug).values
+        y_aug_pred = model.predict(X_aug_arr).ravel()
 
     # Create scatter plot for training data
     fig = plt.figure(figsize=(12, 7))
@@ -307,7 +335,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         (1, '#fde624'),
     ], N=256)
 
-    ax = fig.add_subplot(1, 1, 1)
+    ax = fig.add_subplot(1, 2, 1 if mode == 'data_aug' else 1)
     ax.set_aspect('equal', adjustable='box')
     min_val, max_val = np.percentile(np.concatenate([y_train_arr, y_train_pred]), [1, 99])
     density = ax.hist2d(y_train_arr, y_train_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
@@ -322,16 +350,59 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
             verticalalignment='top')
 
+    if mode == 'data_aug':
+        ax2 = fig.add_subplot(1, 2, 2)
+        ax2.set_aspect('equal', adjustable='box')
+        min_val, max_val = np.percentile(np.concatenate([y_aug_arr, y_aug_pred]), [1, 99])
+        density = ax2.hist2d(y_aug_arr, y_aug_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
+        fig.colorbar(density[3], ax=ax2, label='Number of points per bin')
+        plt.xlabel('True Values')
+        plt.ylabel('Predicted Values')
+        plt.title('Augmented Data')
+        plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
+
+        # Calculate R-squared value and add it to the plot
+        r2 = r2_score(y_aug_arr, y_aug_pred)
+        ax2.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax2.transAxes, fontsize=14,
+                verticalalignment='top')
+
     plt.tight_layout()
     plt.savefig(os.path.join('results', f'pred_vs_true_{mode}.png'))
-    
+
+    # Create scatter plot for test data
+    fig_test = plt.figure(figsize=(12, 7))
+
+    ax_test = fig_test.add_subplot(1, 1, 1)
+    ax_test.set_aspect('equal', adjustable='box')
+    min_val_test, max_val_test = np.percentile(np.concatenate([y_test_arr, y_test_pred]), [1, 99])
+    density_test = ax_test.hist2d(y_test_arr, y_test_pred, bins=range(int(min_val_test), int(max_val_test) + 1), cmap=white_viridis)
+    fig_test.colorbar(density_test[3], ax=ax_test, label='Number of points per bin')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Test Data')
+    plt.plot([min_val_test, max_val_test], [min_val_test, max_val_test], 'k-', lw=1)
+
+    # Calculate R-squared value and add it to the plot
+    r2_test = r2_score(y_test_arr, y_test_pred)
+    ax_test.text(0.05, 0.95, f'R-squared = {r2_test:.2f}', transform=ax_test.transAxes, fontsize=14,
+        verticalalignment='top')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join('results', 'pred_vs_true_test.png'))
+
     # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train_arr, 'PredictedValues': y_train_pred})
     train_df.to_csv(os.path.join('results', f'pred_vs_true_{mode}.csv'), index=False)
 
-    return best_model
+    if mode == 'data_aug':
+        aug_df = pd.DataFrame({'TrueValues': y_aug_arr, 'PredictedValues': y_aug_pred})
+        aug_df.to_csv(os.path.join('results', f'pred_vs_true_{mode}_aug.csv'), index=False)
 
-####################################################################################
+    # Save the true and predicted values as csv
+    test_df = pd.DataFrame({'TrueValues': y_test_arr, 'PredictedValues': y_test_pred})
+    test_df.to_csv(os.path.join('results', 'pred_vs_true_test.csv'), index=False)
+
+###############################################################################
 
 class Model:
     def __init__(self, mode, model_type, lag):
