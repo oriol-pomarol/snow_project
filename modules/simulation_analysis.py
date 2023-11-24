@@ -22,6 +22,13 @@ def simulation_analysis(station_years=[]):
         "wfj",
     ]
 
+    import pandas as pd
+
+    # Load the train/test into a dictionary
+    path = os.path.join("results", "train_test_split_dates.csv")
+    df_train_test_split = pd.read_csv(path)
+    train_test_split_dict = df_train_test_split['train_test_split'].to_dict()
+
     # Load the station data
     dict_dfs = {}
     for station_name in station_names:
@@ -45,65 +52,72 @@ def simulation_analysis(station_years=[]):
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
-    # Create an empty df for the MSE and nNSE
-    sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
-    df_mse = pd.DataFrame(columns=sim_modes)
-    df_nnse = pd.DataFrame(columns=sim_modes)
+    # # Create an empty df for the MSE and nNSE
+    # sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
+    # df_mse = pd.DataFrame(columns=sim_modes)
+    # df_nnse = pd.DataFrame(columns=sim_modes)
 
-    # Find the MSE and nNSE and store them in the lists
-    for station_name in station_names:
-        df_station_clean = dict_dfs[station_name].dropna()
-        obs_swe = df_station_clean['obs_swe']
-        mse_station = [mean_squared_error(obs_swe, df_station_clean[mode])
-                       for mode in sim_modes]
-        nnse_station = [1 / (2 - (1 - mse / np.var(obs_swe)))
-                        for mse in mse_station]
+    # # Find the MSE and nNSE and store them in the lists
+    # for station_name in station_names:
+    #     df_station_clean = dict_dfs[station_name].dropna()
+    #     obs_swe = df_station_clean['obs_swe']
+    #     mse_station = [mean_squared_error(obs_swe, df_station_clean[mode])
+    #                    for mode in sim_modes]
+    #     nnse_station = [1 / (2 - (1 - mse / np.var(obs_swe)))
+    #                     for mse in mse_station]
 
-        # Append the predictions, MSE and nNSE to the df
-        df_mse.loc[station_name] = mse_station
-        df_nnse.loc[station_name] = nnse_station
+    #     # Append the predictions, MSE and nNSE to the df
+    #     df_mse.loc[station_name] = mse_station
+    #     df_nnse.loc[station_name] = nnse_station
 
-        # Save the MSE and nNSE as csv and the predictions with pickle
-        df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
-        df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
+    #     # Save the MSE and nNSE as csv and the predictions with pickle
+    #     df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
+    #     df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
 
     # Plot the results
     print('Plotting the results...')  
     for station_year in station_years:
-        station_name, year = station_year.split("_")
-        if station_name == 'all':
-            fig, axs = plt.subplots(5, 2, figsize=(15, 8))
-            axs = axs.flatten()
-            for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
-                ax = axs[station_idx]
-                df_masked = mask_measurements_by_year(df_station, year)
-                for column_name in df_masked.columns:
-                    clean_column = df_masked[column_name].dropna()
-                    ax.plot(clean_column.index, clean_column, '.', label=column_name)
-            plt.legend()
-            plt.savefig(os.path.join('results', 'fwd_sim_all.png'))
 
+        station_name, year = station_year.split("_")
+
+        if station_name == 'all':
+            station_names_plot = station_names
+            fig, axs = plt.subplots(5, 2, figsize=(20, 25))
+            axs = axs.flatten()
+        
         else:
-            df_station = dict_dfs[station_name]
+            station_names_plot = [station_name]
+            fig, axs = plt.subplots(1, 1, figsize=(20, 25))
+            axs = [axs]
+
+        dict_dfs_plot = {st_name: dict_dfs[st_name] for st_name in station_names_plot}
+        for station_idx, (station_name, df_station) in enumerate(dict_dfs_plot.items()):
+            ax = axs[station_idx]
             df_masked = mask_measurements_by_year(df_station, year)
-            fig, ax = plt.subplots(1,1, figsize=(15, 8))
             for column_name in df_masked.columns:
                 clean_column = df_masked[column_name].dropna()
                 ax.plot(clean_column.index, clean_column, label=column_name)
-            ax.set_xlabel('Date')
-            ax.set_ylabel('SWE')
-            ax.set_title(f'{station_name.upper()} {year}')
-            ax.legend()
-            plt.savefig(os.path.join('results', f'fwd_sim_{station_year}.png'))
+        plt.legend()
+        plt.savefig(os.path.join('results', 'fwd_sim_all.png'))
+        ax.set_xlabel('Date')
+        ax.set_ylabel('SWE')
+        ax.set_title(f'{station_name.upper()} {year}')
+        ax.legend()
+        plt.savefig(os.path.join('results', f'fwd_sim_{station_name}_{year}.png'))
 
 ###############################################################################
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def mask_measurements_by_year(df, year):
+def mask_measurements_by_year(df, year, train_test_split_date=None):
     if year == 'all':
         return df
-    year = int(year)
-    start_date = pd.to_datetime(f'{year}-07-01')
-    end_date = pd.to_datetime(f'{year + 1}-07-01')
-    return df[(df.index >= start_date) & (df.index < end_date)]
+    elif year == 'train':
+        return df[df.index <= train_test_split_date]
+    elif year == 'test':
+        return df[df.index > train_test_split_date]
+    elif year.isdigit(): 
+        year = int(year)
+        start_date = pd.to_datetime(f'{year}-07-01')
+        end_date = pd.to_datetime(f'{year + 1}-07-01')
+        return df[(df.index >= start_date) & (df.index < end_date)]
