@@ -53,27 +53,30 @@ def simulation_analysis(station_years=[]):
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
-    # # Create an empty df for the MSE and nNSE
-    # sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
-    # df_mse = pd.DataFrame(columns=sim_modes)
-    # df_nnse = pd.DataFrame(columns=sim_modes)
+    # Create an empty dataframe for the nNSE
+    sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
+    df_nnse = pd.DataFrame(columns=sim_modes)
 
-    # # Find the MSE and nNSE and store them in the lists
-    # for station_name in station_names:
-    #     df_station_clean = dict_dfs[station_name].dropna()
-    #     obs_swe = df_station_clean['obs_swe']
-    #     mse_station = [mean_squared_error(obs_swe, df_station_clean[mode])
-    #                    for mode in sim_modes]
-    #     nnse_station = [1 / (2 - (1 - mse / np.var(obs_swe)))
-    #                     for mse in mse_station]
+    # Find the nNSE and store them in the dataframe for each station
+    for station_name, split_date in train_test_split_dict.items():
+        df_station_clean = dict_dfs[station_name].dropna()
+        
+        # Split the data into training and testing sets based on the years
+        df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
+        df_test = mask_measurements_by_year(df_station_clean, 'test', split_date)
+        
+        # Calculate the nNSE for the training set and append it to the df
+        obs_swe_train = df_train['obs_swe']
+        nnse_train = [calculate_nNSE(obs_swe_train, df_train[mode]) for mode in sim_modes]
+        df_nnse.loc[station_name + '_train'] = nnse_train
+        
+        # Calculate the nNSE for the testing set and append it to the df
+        obs_swe_test = df_test['obs_swe']
+        nnse_test = [calculate_nNSE(obs_swe_test, df_test[mode]) for mode in sim_modes]
+        df_nnse.loc[station_name + '_test'] = nnse_test
 
-    #     # Append the predictions, MSE and nNSE to the df
-    #     df_mse.loc[station_name] = mse_station
-    #     df_nnse.loc[station_name] = nnse_station
-
-    #     # Save the MSE and nNSE as csv and the predictions with pickle
-    #     df_mse.to_csv(os.path.join('results', 'fwd_sim_mse.csv'))
-    #     df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
+    # Save the nNSE as csv
+    df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
 
     # Plot the results
     print('Plotting the results...')  
@@ -81,6 +84,7 @@ def simulation_analysis(station_years=[]):
 
         station_name, year = station_year.split("_")
 
+        # Initialize the figure depending on the number of stations
         if station_name == 'all':
             station_names_plot = station_names
             fig, axs = plt.subplots(5, 2, figsize=(20, 25))
@@ -91,32 +95,34 @@ def simulation_analysis(station_years=[]):
             fig, axs = plt.subplots(1, 1, figsize=(20, 7))
             axs = [axs]
 
+        # Create a dictionary with the dataframes to plot, and a list of labels
         dict_dfs_plot = {st_name: dict_dfs[st_name] for st_name in station_names_plot}
         labels = []
 
         for station_idx, (station_name, df_station) in enumerate(dict_dfs_plot.items()):
+            
+            # Get the axis
             ax = axs[station_idx]
-            train_test_split = train_test_split_dict.get(station_name, None)
-            df_masked = mask_measurements_by_year(df_station, year, train_test_split)
-            num_data_points = df_masked['obs_swe'].count()  # Count the number of data points
+
+            # Mask the measurements and find the number of data points
+            split_date = train_test_split_dict.get(station_name, None)
+            df_masked = mask_measurements_by_year(df_station, year, split_date)
+            df_masked_clean = df_masked.dropna()
+            num_data_points = df_masked_clean['obs_swe'].count()
+
+            # Plot the observed SWE and calculate the nNSE
             for column_name in df_masked.columns:
-                clean_column = df_masked[column_name].dropna()
-                
-                # Calculate nNSE and append it to the legend
-                nNSE = calculate_nNSE(df_masked["obs_swe"] , clean_column)                
-                ax.plot(clean_column.index, clean_column, label=f'{column_name} (nNSE: {nNSE:.2f})')
+                nNSE = calculate_nNSE(df_masked_clean["obs_swe"] ,
+                                      df_masked_clean[column_name])
+                clean_column = df_masked[column_name].dropna()                
+                ax.plot(clean_column.index, clean_column,
+                        label=f'{column_name} (nNSE: {nNSE:.2f})')
 
-            # Create the original legend
+            # Create the  legend
             ax.legend(fontsize='large')
-
-            # Get the handles and labels of the original legend
             handles, labels = ax.get_legend_handles_labels()
-
-            # Add the number of data points as a new legend item
             handles.append(Line2D([0], [0], marker='None', color='white', label=f'Data points: {num_data_points}'))
             labels.append(f'Data points: {num_data_points}')
-
-            # Create the new legend
             ax.legend(handles=handles, labels=labels, fontsize='large')
 
             ax.set_xlabel('Date')
@@ -132,29 +138,16 @@ def mask_measurements_by_year(df, year, train_test_split_date=None):
     if year == 'all':
         return df
     elif year == 'train':
-        return df[df.index <= train_test_split_date]
+        return df[df.index < train_test_split_date]
     elif year == 'test':
-        return df[df.index > train_test_split_date]
+        return df[df.index >= train_test_split_date]
     elif year.isdigit(): 
         year = int(year)
         start_date = pd.to_datetime(f'{year}-07-01')
         end_date = pd.to_datetime(f'{year + 1}-07-01')
         return df[(df.index >= start_date) & (df.index < end_date)]
     
-def calculate_nNSE(predicted, observed):
-    """Calculate the nNSE between two series"""
-
-    # Join the series into a dataframe to remove NaNs
-    df = predicted.to_frame().join(observed.to_frame(), how='inner',
-                                   lsuffix='_pred', rsuffix='_obs')
-    df.columns = ['predicted', 'observed']
-    df = df.dropna()
-
-    # Retrieve observed and predicted arrays
-    observed_array = df['observed'].to_numpy()
-    predicted_array = df['predicted'].to_numpy()
-
-    # Calculate the nNSE
-    nNSE = 1 / (2 - (1 - mean_squared_error(observed_array, predicted_array) \
-                     / np.var(observed_array)))
+def calculate_nNSE(observed, predicted):
+    mse = mean_squared_error(observed, predicted)
+    nNSE = 1 / (2 - (1 - mse / np.var(observed)))
     return nNSE
