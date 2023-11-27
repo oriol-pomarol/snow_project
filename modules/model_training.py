@@ -64,8 +64,8 @@ def model_training():
 
     for i, df in enumerate(augm_dfs):
         df = df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :]
-        subset_na = df.columns.difference(['obs_swe', 'delta_obs_swe'])
-        augm_dfs[i] = df.dropna(subset=subset_na)
+        subset_nan = df.columns.difference(['obs_swe', 'delta_obs_swe'])
+        augm_dfs[i] = df.dropna(subset=subset_nan)
     
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
@@ -93,7 +93,7 @@ def model_training():
     print('Starting data augmentation training...')
     X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
     y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
-    X_aug = [df.iloc[:, :-3] for df in augm_dfs]
+    X_aug = [df.iloc[:, :-4] for df in augm_dfs]
     y_aug = [df.iloc[:, -1] for df in augm_dfs]
     X_test = [df.iloc[int(len(df)*0.8):, :-4] for df in trng_dfs]
     y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
@@ -178,13 +178,14 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
     X_train, X_val, y_train, y_val = \
         train_test_split(pd.concat(X), pd.concat(y),
                          test_size=0.2, random_state=10)
-    X_train_aug, X_val_aug, y_train_aug, y_val_aug = \
-        train_test_split(pd.concat(X_aug), pd.concat(y_aug), 
-                         test_size=len(X_val), random_state=10)
+    if mode == 'data_aug':
+        X_train_aug, X_val_aug, y_train_aug, y_val_aug = \
+            train_test_split(pd.concat(X_aug), pd.concat(y_aug), 
+                            test_size=len(X_val), random_state=10)
 
-    # Define the lengths of the training observed and augmented data 
-    len_X_obs_train = len(X_train)
-    len_X_aug_train = len(X_train_aug)
+        # Define the lengths of the training observed and augmented data 
+        len_X_obs_train = len(X_train)
+        len_X_aug_train = len(X_train_aug)
     
     # Train each model and calculate the loss on the validation data
     for m, model in enumerate(models):
@@ -203,7 +204,6 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
             weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
             sample_weight = np.concatenate((np.ones(len_X_obs_train), 
                                             np.full(len_X_aug_train, weight_aug)))
-            
         else:
             # Convert the dataframes to arrays
             X_train_arr = X_train.values
@@ -262,9 +262,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
     # Train the best model on all train/val data
     X_train, y_train = pd.concat(X), pd.concat(y)
-    X_train_aug, y_train_aug = pd.concat(X_aug), pd.concat(y_aug)
     
     if mode == 'data_aug':
+        X_train_aug, y_train_aug = pd.concat(X_aug), pd.concat(y_aug)
         # Define the lengths of the training observed and augmented data 
         len_X_obs_train = len(X_train)
         len_X_aug_train = len(X_train_aug)
@@ -388,7 +388,7 @@ def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode, X_aug=None,
         verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(os.path.join('results', 'pred_vs_true_test.png'))
+    plt.savefig(os.path.join('results', f'pred_vs_true_test_{mode}.png'))
 
     # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train_arr, 'PredictedValues': y_train_pred})
