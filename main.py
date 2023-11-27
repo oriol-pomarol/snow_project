@@ -26,7 +26,8 @@ print('Successfully performed forward simulation...')
 
 # Analyze the simulation results
 print('Analyzing simulation results...')
-simulation_analysis()
+simulation_analysis(station_years=['cdp_train', 'rme_train', 'sod_train',
+                                   'cdp_test', 'rme_test', 'sod_test'])
 print('Successfully analyzed simulation results...')
 
 # Print execution time
