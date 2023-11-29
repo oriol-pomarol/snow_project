@@ -400,7 +400,7 @@ def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode, X_aug=None,
 
     # Save the true and predicted values as csv
     test_df = pd.DataFrame({'TrueValues': y_test_arr, 'PredictedValues': y_test_pred})
-    test_df.to_csv(os.path.join('results', 'pred_vs_true_test.csv'), index=False)
+    test_df.to_csv(os.path.join('results', f'pred_vs_true_test_{mode}.csv'), index=False)
 
 ###############################################################################
 
