@@ -145,6 +145,7 @@ def model_training():
                                   columns=['start_date', 'end_date'],
                                   index=train_stations)
     df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
+    
     return
 
 ####################################################################################

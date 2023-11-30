@@ -23,12 +23,12 @@ def simulation_analysis(station_years=[]):
         "wfj",
     ]
 
-    import pandas as pd
-
     # Load the train/test into a dictionary
-    path = os.path.join("results", "train_test_split.csv")
-    df_train_test_split = pd.read_csv(path, index_col=0, parse_dates=True)
-    train_test_split_dict = df_train_test_split['train_test_split_dates'].to_dict()
+    path = os.path.join("results", "split_dates.csv")
+    df_split_dates = pd.read_csv(path, index_col=0)
+    dict_split_dates = {index: row.tolist() for index, row
+                        in df_split_dates.iterrows()}
+
 
     # Load the station data
     dict_dfs = {}
@@ -58,7 +58,7 @@ def simulation_analysis(station_years=[]):
     df_nnse = pd.DataFrame(columns=sim_modes)
 
     # Find the nNSE and store them in the dataframe for each station
-    for station_name, split_date in train_test_split_dict.items():
+    for station_name, split_date in dict_split_dates.items():
         df_station_clean = dict_dfs[station_name].dropna()
         
         # Split the data into training and testing sets based on the years
@@ -105,7 +105,7 @@ def simulation_analysis(station_years=[]):
             ax = axs[station_idx]
 
             # Mask the measurements and find the number of data points
-            split_date = train_test_split_dict.get(station_name, None)
+            split_date = dict_split_dates.get(station_name, None)
             df_masked = mask_measurements_by_year(df_station, year, split_date)
             df_masked_clean = df_masked.dropna()
             num_data_points = df_masked_clean['obs_swe'].count()
@@ -134,18 +134,28 @@ def simulation_analysis(station_years=[]):
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def mask_measurements_by_year(df, year, train_test_split_date=None):
+def mask_measurements_by_year(df, year, split_date=None):
+    start_date, end_date = split_date
+
     if year == 'all':
         return df
+    
     elif year == 'train':
-        return df[df.index < train_test_split_date]
+        mask = (df.index < start_date) | (df.index > end_date)
+
     elif year == 'test':
-        return df[df.index >= train_test_split_date]
+        mask = (df.index >= start_date) & (df.index <= end_date)
+
     elif year.isdigit(): 
         year = int(year)
         start_date = pd.to_datetime(f'{year}-07-01')
         end_date = pd.to_datetime(f'{year + 1}-07-01')
-        return df[(df.index >= start_date) & (df.index < end_date)]
+        mask = (df.index >= start_date) & (df.index < end_date)
+        
+    else:
+        raise ValueError(f'Invalid input year: {year}')
+    
+    return df[mask]
     
 def calculate_nNSE(observed, predicted):
     mse = mean_squared_error(observed, predicted)
