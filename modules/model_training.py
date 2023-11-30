@@ -52,10 +52,11 @@ def model_training():
     tf.random.set_seed(10)
     # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    # Define what stations will be used for training, augmenting and testing
-    trng_dfs = [dict_dfs["cdp"], dict_dfs["rme"], dict_dfs["sod"]]
-    augm_dfs = [dict_dfs["oas"], dict_dfs["obs"], dict_dfs["ojp"],
-                dict_dfs["sap"], dict_dfs["snb"], dict_dfs["swa"]]
+    # Define what stations will be used for training and augmenting
+    train_stations = ['cdp', 'rme', 'sod']
+    augm_stations = ['oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
+    trng_dfs = [dict_dfs[station] for station in train_stations]
+    augm_dfs = [dict_dfs[station] for station in augm_stations]
 
     # Filter the biased delta SWE values and drop NaNs
     for i, df in enumerate(trng_dfs):
@@ -66,13 +67,31 @@ def model_training():
         df = df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :]
         subset_nan = df.columns.difference(['obs_swe', 'delta_obs_swe'])
         augm_dfs[i] = df.dropna(subset=subset_nan)
+
+    # Define the train/test split indices
+    start = [int(len(df)*0.4) for df in trng_dfs]
+    end = [start + int(len(df)*0.2) for start, df in zip(start, trng_dfs)]
+
+    # Make a pred vs true plot for the crocus data
+    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i]:, -2])
+             for i, df in enumerate(trng_dfs)]
+    y_train_mod = [df.iloc[:start[i], -1].append(df.iloc[end[i]:, -1])
+                    for i, df in enumerate(trng_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
+    y_test_mod = [df.iloc[start[i]:end[i], -1] for i, df in enumerate(trng_dfs)]
+
+    plot_pred_vs_true(model=None, X_train=None, y_train=y_obs,
+                      X_test=None, y_test=y_test, mode='mod_swe',
+                      y_train_mod = y_train_mod, y_test_mod = y_test_mod)
     
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
-    X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
-    X_test = [df.iloc[int(len(df)*0.8):, :-4] for df in trng_dfs]
-    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
+    X_obs = [df.iloc[:start[i], :-4].append(df.iloc[end[i]:, :-4])
+             for i, df in enumerate(trng_dfs)]
+    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+             for i, df in enumerate(trng_dfs)]
+    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trng_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
                       X_test=X_test, y_test=y_test, mode='dir_pred')
@@ -80,10 +99,13 @@ def model_training():
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
-    X_obs = [df.iloc[:int(len(df)*0.8), :-4].join(df.iloc[:, -1]) for df in trng_dfs]
-    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
-    X_test = [df.iloc[int(len(df)*0.8):, :-4].join(df.iloc[:, -1]) for df in trng_dfs]
-    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
+    X_obs = [df.iloc[:start[i], :-4].join(df.iloc[end[i]:, -1])
+             for i, df in enumerate(trng_dfs)]
+    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+             for i, df in enumerate(trng_dfs)]
+    X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
+              for i, df in enumerate(trng_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
     plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
                       X_test=X_test, y_test=y_test, mode='err_corr')
@@ -91,12 +113,15 @@ def model_training():
 
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
-    X_obs = [df.iloc[:int(len(df)*0.8), :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:int(len(df)*0.8), -2] for df in trng_dfs]
+    X_obs = [df.iloc[:start[i], :-4].join(df.iloc[end[i]:, -1])
+             for i, df in enumerate(trng_dfs)]
+    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+             for i, df in enumerate(trng_dfs)]
     X_aug = [df.iloc[:, :-4] for df in augm_dfs]
     y_aug = [df.iloc[:, -1] for df in augm_dfs]
-    X_test = [df.iloc[int(len(df)*0.8):, :-4] for df in trng_dfs]
-    y_test = [df.iloc[int(len(df)*0.8):, -2] for df in trng_dfs]
+    X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
+              for i, df in enumerate(trng_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
     plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
@@ -104,11 +129,8 @@ def model_training():
                       X_aug=X_aug, y_aug=y_aug)
     print('Data augmentation trained successfully...')
 
-    # Move any files in the models folder to an old_files folder
-    source_folder = os.path.join('results', 'models')
-    move_old_files(source_folder)
-
     # Save the models
+    source_folder = os.path.join('results', 'models')
     for model, mode in zip([model_dp, model_ec, model_da],
                            ['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
@@ -117,11 +139,12 @@ def model_training():
             model.model.save(os.path.join(source_folder, f'{mode}.h5'))
 
     # Save the train_test split dates as a csv
-    train_test_split_dates = [df.index[int(len(df)*0.8)] for df in trng_dfs]
-    train_test_split_stations = ['cdp', 'rme', 'sod']
-    df_train_test_split = pd.DataFrame({'train_test_split_dates':train_test_split_dates},
-                                       index=train_test_split_stations)
-    df_train_test_split.to_csv(os.path.join('results', 'train_test_split.csv'))
+    split_dates = [(df.index[start[i]], df.index[end[i]])
+                   for i, df in enumerate(trng_dfs)]
+    df_split_dates = pd.DataFrame(split_dates,
+                                  columns=['start_date', 'end_date'],
+                                  index=train_stations)
+    df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
     return
 
 ####################################################################################
@@ -307,20 +330,27 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
 
 ###############################################################################
 
-def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode, X_aug=None, y_aug=None):
-    X_train_arr = pd.concat(X_train).values
-    y_train_arr = pd.concat(y_train).values
-    X_test_arr = pd.concat(X_test).values
-    y_test_arr = pd.concat(y_test).values
+def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode,
+                      X_aug=None, y_aug=None, y_train_mod=None, y_test_mod=None):
     
-    # Predict values for training and test data
-    y_train_pred = model.predict(X_train_arr).ravel()
-    y_test_pred = model.predict(X_test_arr).ravel()
+    y_train_arr = pd.concat(y_train).values
+    y_test_arr = pd.concat(y_test).values
 
-    if mode == 'data_aug':
-        X_aug_arr = pd.concat(X_aug).values
-        y_aug_arr = pd.concat(y_aug).values
-        y_aug_pred = model.predict(X_aug_arr).ravel()
+    if mode == 'mod_swe':
+        y_train_pred = pd.concat(y_train_mod).values
+        y_test_pred = pd.concat(y_test_mod).values
+
+    else:
+        # Predict values for training and test data
+        X_train_arr = pd.concat(X_train).values
+        X_test_arr = pd.concat(X_test).values
+        y_train_pred = model.predict(X_train_arr).ravel()
+        y_test_pred = model.predict(X_test_arr).ravel()
+
+        if mode == 'data_aug':
+            X_aug_arr = pd.concat(X_aug).values
+            y_aug_arr = pd.concat(y_aug).values
+            y_aug_pred = model.predict(X_aug_arr).ravel()
 
     # Create scatter plot for training data
     fig = plt.figure(figsize=(12, 7))
@@ -532,28 +562,6 @@ class Model:
             model_name += f"_{param_name}{value_str}"
         
         return model_name
-
-####################################################################################
-
-def move_old_files(source_folder):
-    target_folder = os.path.join(source_folder, "old_files")
-    
-    # Create 'old_files' directory if it doesn't exist
-    if not os.path.exists(target_folder):
-        os.mkdir(target_folder)
-    
-    # List all files in the source folder
-    files = [f for f in os.listdir(source_folder) if os.path.isfile(os.path.join(source_folder, f))]
-    
-    if files:
-        print(f"Moving {len(files)} files to 'old_files' folder...")
-        for file in files:
-            source_path = os.path.join(source_folder, file)
-            target_path = os.path.join(target_folder, file)
-            os.rename(source_path, target_path)
-        print("Files moved successfully.")
-    else:
-        print("No files to move.")
 
 ####################################################################################
 
