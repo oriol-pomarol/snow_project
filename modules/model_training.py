@@ -73,22 +73,22 @@ def model_training():
     end = [start + int(len(df)*0.2) for start, df in zip(start, trng_dfs)]
 
     # Make a pred vs true plot for the crocus data
-    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i]:, -2])
+    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
              for i, df in enumerate(trng_dfs)]
-    y_train_mod = [df.iloc[:start[i], -1].append(df.iloc[end[i]:, -1])
-                    for i, df in enumerate(trng_dfs)]
+    y_mod = [pd.concat([df.iloc[:start[i], -1], df.iloc[end[i]:, -1]])
+             for i, df in enumerate(trng_dfs)]
     y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
     y_test_mod = [df.iloc[start[i]:end[i], -1] for i, df in enumerate(trng_dfs)]
 
     plot_pred_vs_true(model=None, X_train=None, y_train=y_obs,
                       X_test=None, y_test=y_test, mode='mod_swe',
-                      y_train_mod = y_train_mod, y_test_mod = y_test_mod)
+                      y_train_mod = y_mod, y_test_mod = y_test_mod)
     
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
-    X_obs = [df.iloc[:start[i], :-4].append(df.iloc[end[i]:, :-4])
+    X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
              for i, df in enumerate(trng_dfs)]
-    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
              for i, df in enumerate(trng_dfs)]
     X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trng_dfs)]
     y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
@@ -99,9 +99,10 @@ def model_training():
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
-    X_obs = [df.iloc[:start[i], :-4].join(df.iloc[end[i]:, -1])
+    X_obs = [pd.concat([df.iloc[:start[i], :-4].join(df.iloc[:start[i], -1]),
+                       df.iloc[end[i]:, :-4].join(df.iloc[end[i]:, -1])])
              for i, df in enumerate(trng_dfs)]
-    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
              for i, df in enumerate(trng_dfs)]
     X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
               for i, df in enumerate(trng_dfs)]
@@ -113,14 +114,13 @@ def model_training():
 
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
-    X_obs = [df.iloc[:start[i], :-4].join(df.iloc[end[i]:, -1])
+    X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
              for i, df in enumerate(trng_dfs)]
-    y_obs = [df.iloc[:start[i], -2].append(df.iloc[end[i], -2])
+    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
              for i, df in enumerate(trng_dfs)]
     X_aug = [df.iloc[:, :-4] for df in augm_dfs]
     y_aug = [df.iloc[:, -1] for df in augm_dfs]
-    X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
-              for i, df in enumerate(trng_dfs)]
+    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trng_dfs)]
     y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
