@@ -75,7 +75,7 @@ def data_preprocessing():
         lat_station = data_info_met.loc[station_idx, "Latitude"]
         lng_station = data_info_met.loc[station_idx, "Longitude"]
 
-        # Pre-process the data (all data)
+        # Pre-process the data
         df_met_preprocessed = met_preprocessing(df_met, lag,
                                                 lat_station, lng_station)
         df_obs_preprocessed = obs_preprocessing(df_obs)
@@ -189,9 +189,14 @@ def met_preprocessing(df_met, lag, lat_station, lng_station):
     # Create an empty dataframe for the aggregated variables
     df_agg = pd.DataFrame()
 
-    # Shift the data 12h to fit snow observations and remove incomplete days
-    df_met.index = df_met.index + pd.Timedelta(hours=12)
-    df_met = df_met[11:-13]
+    # Shift the data 12h to fit snow observations
+    df_met.index = df_met.index - pd.Timedelta(hours=12)
+
+    # Remove rows from incomplete days
+    while df_met.index[0].hour != 0:
+        df_met = df_met[1:]
+    while df_met.index[-1].hour != 23:
+        df_met = df_met[:-1]
 
     for var_name in names_met_agg:
         # Take the variable of interest from the original DataFrame

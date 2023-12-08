@@ -134,16 +134,17 @@ def simulation_analysis(station_years=[]):
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def mask_measurements_by_year(df, year, split_date=None):
-    start_date, end_date = split_date
+def mask_measurements_by_year(df, year, split_dates=None):
 
     if year == 'all':
         return df
     
     elif year == 'train':
+        start_date, end_date = split_dates
         mask = (df.index < start_date) | (df.index > end_date)
 
     elif year == 'test':
+        start_date, end_date = split_dates
         mask = (df.index >= start_date) & (df.index <= end_date)
 
     elif year.isdigit(): 
