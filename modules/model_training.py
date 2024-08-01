@@ -53,10 +53,10 @@ def model_training():
     # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     # Define what stations will be used for training and augmenting
-    train_stations = ['cdp', 'rme', 'sod']
-    augm_stations = ['oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
-    trn_dfs = [dict_dfs[station] for station in train_stations]
-    aug_dfs = [dict_dfs[station] for station in augm_stations]
+    trn_stations = ['cdp', 'rme', 'sod']
+    aug_stations = ['oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
+    trn_dfs = [dict_dfs[station] for station in trn_stations]
+    aug_dfs = [dict_dfs[station] for station in aug_stations]
 
     # Filter the biased delta SWE values and drop NaNs
     for i, df in enumerate(trn_dfs):
@@ -143,7 +143,7 @@ def model_training():
                    for i, df in enumerate(trn_dfs)]
     df_split_dates = pd.DataFrame(split_dates,
                                   columns=['start_date', 'end_date'],
-                                  index=train_stations)
+                                  index=trn_stations)
     df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
     
     return
