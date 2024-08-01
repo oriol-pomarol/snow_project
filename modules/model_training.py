@@ -55,30 +55,30 @@ def model_training():
     # Define what stations will be used for training and augmenting
     train_stations = ['cdp', 'rme', 'sod']
     augm_stations = ['oas', 'obs', 'ojp', 'sap', 'snb', 'swa']
-    trng_dfs = [dict_dfs[station] for station in train_stations]
-    augm_dfs = [dict_dfs[station] for station in augm_stations]
+    trn_dfs = [dict_dfs[station] for station in train_stations]
+    aug_dfs = [dict_dfs[station] for station in augm_stations]
 
     # Filter the biased delta SWE values and drop NaNs
-    for i, df in enumerate(trng_dfs):
+    for i, df in enumerate(trn_dfs):
         df = df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :]
-        trng_dfs[i] = df.dropna()
+        trn_dfs[i] = df.dropna()
 
-    for i, df in enumerate(augm_dfs):
+    for i, df in enumerate(aug_dfs):
         df = df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :]
         subset_nan = df.columns.difference(['obs_swe', 'delta_obs_swe'])
-        augm_dfs[i] = df.dropna(subset=subset_nan)
+        aug_dfs[i] = df.dropna(subset=subset_nan)
 
     # Define the train/test split indices
-    start = [int(len(df)*0.4) for df in trng_dfs]
-    end = [start + int(len(df)*0.2) for start, df in zip(start, trng_dfs)]
+    start = [int(len(df)*0.4) for df in trn_dfs]
+    end = [start + int(len(df)*0.2) for start, df in zip(start, trn_dfs)]
 
     # Make a pred vs true plot for the crocus data
     y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
     y_mod = [pd.concat([df.iloc[:start[i], -1], df.iloc[end[i]:, -1]])
-             for i, df in enumerate(trng_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
-    y_test_mod = [df.iloc[start[i]:end[i], -1] for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
+    y_test_mod = [df.iloc[start[i]:end[i], -1] for i, df in enumerate(trn_dfs)]
 
     plot_pred_vs_true(model=None, X_train=None, y_train=y_obs,
                       X_test=None, y_test=y_test, mode='mod_swe',
@@ -87,11 +87,11 @@ def model_training():
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
     X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
-             for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
     y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trng_dfs)]
-    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trng_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
+    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trn_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
                       X_test=X_test, y_test=y_test, mode='dir_pred')
@@ -101,12 +101,12 @@ def model_training():
     print('Starting error correction training...')
     X_obs = [pd.concat([df.iloc[:start[i], :-4].join(df.iloc[:start[i], -1]),
                        df.iloc[end[i]:, :-4].join(df.iloc[end[i]:, -1])])
-             for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
     y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
     X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
-              for i, df in enumerate(trng_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
+              for i, df in enumerate(trn_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
     plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
                       X_test=X_test, y_test=y_test, mode='err_corr')
@@ -115,13 +115,13 @@ def model_training():
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
     X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
-             for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
     y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trng_dfs)]
-    X_aug = [df.iloc[:, :-4] for df in augm_dfs]
-    y_aug = [df.iloc[:, -1] for df in augm_dfs]
-    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trng_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trng_dfs)]
+             for i, df in enumerate(trn_dfs)]
+    X_aug = [df.iloc[:, :-4] for df in aug_dfs]
+    y_aug = [df.iloc[:, -1] for df in aug_dfs]
+    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trn_dfs)]
+    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
     plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
@@ -140,7 +140,7 @@ def model_training():
 
     # Save the train_test split dates as a csv
     split_dates = [(df.index[start[i]], df.index[end[i]])
-                   for i, df in enumerate(trng_dfs)]
+                   for i, df in enumerate(trn_dfs)]
     df_split_dates = pd.DataFrame(split_dates,
                                   columns=['start_date', 'end_date'],
                                   index=train_stations)
