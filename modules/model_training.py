@@ -55,32 +55,30 @@ def model_training():
     augm_dfs = [dict_dfs["oas"], dict_dfs["obs"], dict_dfs["ojp"],
                 dict_dfs["sap"], dict_dfs["snb"], dict_dfs["swa"]]
 
-    # Filter the biased delta SWE values and drop NaNs
-    trng_dfs = [df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :].dropna()
-                for df in trng_dfs]
-    augm_dfs = [df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :].dropna()
-                for df in augm_dfs]
+    # Clean the dataframes from NaN values
+    trng_dfs = [df.dropna(subset=df.columns[:-2]) for df in trng_dfs]
+    augm_dfs = [df.dropna(subset=df.columns[:-2]) for df in augm_dfs]
 
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
     X_obs = [df.iloc[:, :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    y_obs = [df.iloc[:, -4] for df in trng_dfs]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
     print('Direct prediction trained successfully...')
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
     X_obs = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    y_obs = [df.iloc[:, -4] for df in trng_dfs]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
     print('Error correction trained successfully...')
 
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
     X_obs = [df.iloc[:, :-4] for df in trng_dfs]
-    y_obs = [df.iloc[:, -2] for df in trng_dfs]
+    y_obs = [df.iloc[:, -4] for df in trng_dfs]
     X_aug = [df.iloc[:, :-4] for df in augm_dfs]
-    y_aug = [df.iloc[:, -2] for df in augm_dfs]
+    y_aug = [df.iloc[:, -4] for df in augm_dfs]
 
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')

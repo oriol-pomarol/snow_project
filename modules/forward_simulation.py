@@ -65,8 +65,7 @@ def forward_simulation():
                     print(f"Progress: {progress_pct:.0f}% completed.")
                 
                 # Predict the next SWE value
-                pred_y = model.predict(row)
-                pred_swe = max(pred_swe_arr[model_idx,row_idx-1] + pred_y, 0)
+                pred_swe = model.predict(row)
                 pred_swe_arr[model_idx, row_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
