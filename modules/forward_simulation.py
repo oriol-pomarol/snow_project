@@ -108,21 +108,15 @@ def load_model(mode):
                 break
     return model, model_type
 
-def preprocess_data_lstm(X, lag):
-    # Get the shape of the input array
-    shape = X.shape
-
-    # Calculate the number of subarrays along the last axis
-    num_subarrays = shape[-1] // lag
+def preprocess_row_lstm(X, lag):
 
     # Reshape the array by splitting it along the last axis
-    new_shape = shape[:-1] + (num_subarrays, lag)
-    transformed_X = X.reshape(new_shape)
+    transformed_X = X.reshape((X.shape[0] // lag, lag))
 
     # Transpose the subarrays to get the desired structure
-    transformed_X = np.transpose(transformed_X, axes=(0, 2, 1))
+    transposed_X = np.transpose(transformed_X)
 
-    return transformed_X
+    return transposed_X
 
 class Model:
     def __init__(self, mode, model, model_type, lag):
@@ -145,17 +139,17 @@ class Model:
         if (self.mode == 'dir_pred') or (self.mode == 'data_aug'):
             X_row = np.array(tuple_X_row[:-1])
             if self.model_type == 'lstm':
-                X_row = preprocess_data_lstm(X_row, self.lag)
-            X_row = X_row.reshape(1, -1)
+                X_row = preprocess_row_lstm(X_row, self.lag)
+            X_row = np.expand_dims(X_row, axis=0)
 
         # Preprocess the data for the err_corr mode
         elif self.mode == 'err_corr':
             if self.model_type == 'lstm':
                 meteo_data = np.array(tuple_X_row[:-1])
-                meteo_X = preprocess_data_lstm(meteo_data, self.lag)
+                meteo_X = preprocess_row_lstm(meteo_data, self.lag)
                 X_row = [meteo_X, tuple_X_row[-1]]
             else:
-                X_row = np.array(tuple_X_row).reshape(1, -1)
+                X_row = np.expand_dims(np.array(tuple_X_row), axis=0)
 
         # Return the predicted delta SWE for this row
         y_pred = self.model.predict(X_row).ravel()
