@@ -1,7 +1,6 @@
 # Import libraries
 import time
 from modules.data_preprocessing import data_preprocessing
-from modules.data_preprocessing import data_preprocessing
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
 from modules.simulation_analysis import simulation_analysis
@@ -26,8 +25,7 @@ print('Successfully performed forward simulation...')
 
 # Analyze the simulation results
 print('Analyzing simulation results...')
-simulation_analysis(station_years=['cdp_train', 'rme_train', 'sod_train',
-                                   'cdp_test', 'rme_test', 'sod_test'])
+simulation_analysis(station_years=[])
 print('Successfully analyzed simulation results...')
 
 # Print execution time

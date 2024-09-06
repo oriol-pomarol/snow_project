@@ -14,6 +14,9 @@ import joblib
 
 def model_training():
 
+    # Define the type of split to use
+    temporal_split = True
+
     # Define what lag value to use
     lag = 14
 
@@ -59,74 +62,65 @@ def model_training():
     aug_dfs = [dict_dfs[station] for station in aug_stations]
 
     # Filter the biased delta SWE values and drop NaNs
-    for i, df in enumerate(trn_dfs):
-        df = df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :]
-        trn_dfs[i] = df.dropna()
+    trn_dfs = [df.loc[df['delta_obs_swe'] != -1 * df['obs_swe'], :].dropna()
+                for df in trn_dfs]
+    aug_dfs = [df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :].dropna()
+                for df in aug_dfs]
 
-    for i, df in enumerate(aug_dfs):
-        df = df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :]
-        subset_nan = df.columns.difference(['obs_swe', 'delta_obs_swe'])
-        aug_dfs[i] = df.dropna(subset=subset_nan)
+    if temporal_split:
+        # Define the relative size and start of the train/test split
+        split_size = 0.2
+        split_start = 0.0
 
-    # Define the train/test split indices
-    start = [int(len(df)*0.4) for df in trn_dfs]
-    end = [start + int(len(df)*0.2) for start, df in zip(start, trn_dfs)]
+        # Split the data into train and test
+        trn_dfs, test_dfs = temporal_data_split(trn_dfs, split_start,
+                                                split_size, trn_stations)
 
     # Make a pred vs true plot for the crocus data
-    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trn_dfs)]
-    y_mod = [pd.concat([df.iloc[:start[i], -1], df.iloc[end[i]:, -1]])
-             for i, df in enumerate(trn_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
-    y_test_mod = [df.iloc[start[i]:end[i], -1] for i, df in enumerate(trn_dfs)]
+    y_obs = [df.iloc[:, -2] for df in trn_dfs]
+    y_mod = [df.iloc[:, -1] for df in trn_dfs]
+    y_test_obs = [df.iloc[:, -2] for df in test_dfs]
+    y_test_mod = [df.iloc[:, -1] for df in test_dfs]
 
     plot_pred_vs_true(model=None, X_train=None, y_train=y_obs,
-                      X_test=None, y_test=y_test, mode='mod_swe',
+                      X_test=None, y_test=y_test_obs, mode='mod_swe',
                       y_train_mod = y_mod, y_test_mod = y_test_mod)
     
     # Obtain the best model for the direct prediction setup
     print('Starting direct prediction training...')
-    X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
-             for i, df in enumerate(trn_dfs)]
-    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trn_dfs)]
-    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trn_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
+    X_obs = [df.iloc[:, :-4] for df in trn_dfs]
+    y_obs = [df.iloc[:, -2] for df in trn_dfs]
+    # X_test = [df.iloc[:, :-4] for df in test_dfs]
+    # y_test = [df.iloc[:, -2] for df in test_dfs]
     model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
-    plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
-                      X_test=X_test, y_test=y_test, mode='dir_pred')
+    # plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
+    #                   X_test=X_test, y_test=y_test, mode='dir_pred')
     print('Direct prediction trained successfully...')
 
     # Obtain the best model for the error correction setup
     print('Starting error correction training...')
-    X_obs = [pd.concat([df.iloc[:start[i], :-4].join(df.iloc[:start[i], -1]),
-                       df.iloc[end[i]:, :-4].join(df.iloc[end[i]:, -1])])
-             for i, df in enumerate(trn_dfs)]
-    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trn_dfs)]
-    X_test = [df.iloc[start[i]:end[i], :-4].join(df.iloc[start[i]:end[i], -1])
-              for i, df in enumerate(trn_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
+    X_obs = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in trn_dfs]
+    y_obs = [df.iloc[:, -2] for df in trn_dfs]
+    # X_test = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in test_dfs]
+    # y_test = [df.iloc[:, -2] for df in test_dfs]
     model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
-    plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
-                      X_test=X_test, y_test=y_test, mode='err_corr')
+    # plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
+    #                   X_test=X_test, y_test=y_test, mode='err_corr')
     print('Error correction trained successfully...')
 
     # Obtain the best model for the data augmentation setup
     print('Starting data augmentation training...')
-    X_obs = [pd.concat([df.iloc[:start[i], :-4], df.iloc[end[i]:, :-4]])
-             for i, df in enumerate(trn_dfs)]
-    y_obs = [pd.concat([df.iloc[:start[i], -2], df.iloc[end[i]:, -2]])
-             for i, df in enumerate(trn_dfs)]
+    X_obs = [df.iloc[:, :-4] for df in trn_dfs]
+    y_obs = [df.iloc[:, -2] for df in trn_dfs]
     X_aug = [df.iloc[:, :-4] for df in aug_dfs]
-    y_aug = [df.iloc[:, -1] for df in aug_dfs]
-    X_test = [df.iloc[start[i]:end[i], :-4] for i, df in enumerate(trn_dfs)]
-    y_test = [df.iloc[start[i]:end[i], -2] for i, df in enumerate(trn_dfs)]
+    y_aug = [df.iloc[:, -2] for df in aug_dfs]
+    # X_test = [df.iloc[:, :-4] for df in test_dfs]
+    # y_test = [df.iloc[:, -2] for df in test_dfs]
     model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
-    plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
-                      X_test=X_test, y_test=y_test, mode='data_aug',
-                      X_aug=X_aug, y_aug=y_aug)
+    # plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
+    #                   X_test=X_test, y_test=y_test, mode='data_aug',
+    #                   X_aug=X_aug, y_aug=y_aug)
     print('Data augmentation trained successfully...')
 
     # Save the models
@@ -138,14 +132,6 @@ def model_training():
         elif ('nn' in str(model)) or ('lstm' in str(model)):
             model.model.save(os.path.join(source_folder, f'{mode}.h5'))
 
-    # Save the train_test split dates as a csv
-    split_dates = [(df.index[start[i]], df.index[end[i]])
-                   for i, df in enumerate(trn_dfs)]
-    df_split_dates = pd.DataFrame(split_dates,
-                                  columns=['start_date', 'end_date'],
-                                  index=trn_stations)
-    df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
-    
     return
 
 ####################################################################################
@@ -581,3 +567,30 @@ def preprocess_data_lstm(X, lag):
     transformed_X = np.transpose(transformed_X, axes=(0, 2, 1))
 
     return transformed_X
+
+####################################################################################
+
+def temporal_data_split(dfs, split_start, split_size, trn_stations):
+    
+    # Define a dataframe to store the split dates
+    df_split_dates = pd.DataFrame(columns=['start_date', 'end_date'])
+
+    for i, df in enumerate(dfs):
+        # Define the train/test split indices
+        split_start_idx = int(len(df)*split_start)
+        split_end_idx = split_start_idx + int(len(df)*split_size)
+
+        # Save the split dates
+        split_start_date = df.index[split_start_idx]
+        split_end_date = df.index[split_end_idx]
+        df_split_dates.loc[trn_stations[i]] = [split_start_date, split_end_date]
+
+        # Split the data into train and test
+        dfs_train = pd.concat([df.iloc[:split_start_idx, :],
+                               df.iloc[split_end_idx:, :]])
+        dfs_test = df.iloc[split_start_idx:split_end_idx, :]
+
+    # Save the train_test split dates as a csv
+    df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
+
+    return dfs_train, dfs_test
