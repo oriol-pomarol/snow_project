@@ -138,7 +138,7 @@ def model_training():
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
+def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True):
     # Initialize the models in a list
     models = []
 
@@ -180,22 +180,46 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
                                               l2_reg=l2_reg)
                     models.append(model)
 
-    # Perform a single validation with a temporal train/val split
-    losses = np.zeros(len(models))
+    # Initialize losses and model names for model validation
+    if temporal_split:
+        losses = np.zeros((len(models), 1))
+    else:
+        losses = np.zeros((len(models), len(X)))
     model_names = []
 
-    # Make a random split between training and validation data
-    X_train, X_val, y_train, y_val = \
-        train_test_split(pd.concat(X), pd.concat(y),
-                         test_size=0.2, random_state=10)
-    if mode == 'data_aug':
-        X_train_aug, X_val_aug, y_train_aug, y_val_aug = \
-            train_test_split(pd.concat(X_aug), pd.concat(y_aug), 
-                            test_size=len(X_val), random_state=10)
+    # Initialize training and validation datasets
+    train_val_splits = []
 
-        # Define the lengths of the training observed and augmented data 
-        len_X_obs_train = len(X_train)
-        len_X_aug_train = len(X_train_aug)
+    if temporal_split:
+        # Make a random split between training and validation data
+        X_train, X_val, y_train, y_val = \
+            train_test_split(pd.concat(X), pd.concat(y),
+                            test_size=0.2, random_state=10)
+        train_val_splits.append([X_train, X_val, y_train, y_val])
+        if mode == 'data_aug':
+            X_train_aug, X_val_aug, y_train_aug, y_val_aug = \
+                train_test_split(pd.concat(X_aug), pd.concat(y_aug), 
+                                test_size=len(X_val), random_state=10)
+            train_val_splits[-1] += [X_train_aug, X_val_aug, y_train_aug, y_val_aug]
+        
+    else:
+        for i in range(len(X)):
+            print(f'Train/val split {i+1} of {len(X)}.')
+            X_train = pd.concat([X[j] for j in range(len(X)) if j!=i])
+            y_train = pd.concat([y[j] for j in range(len(y)) if j!=i])
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
+                                                              test_size=0.2, random_state=10)
+            train_val_splits.append([X_train, X_val, y_train, y_val])
+            if mode == 'data_aug':
+                X_train_aug = pd.concat([X_train, pd.concat(X_aug)])
+                y_train_aug = pd.concat([y_train, pd.concat(y_aug)])
+                X_train_aug, X_val_aug, y_train_aug, y_val_aug = train_test_split(X_train_aug, y_train_aug,
+                                                                                test_size=0.2, random_state=10)
+                train_val_splits[-1] += [X_train_aug, X_val_aug, y_train_aug, y_val_aug]
+
+                
+            else:
+                sample_weight = None
     
     # Train each model and calculate the loss on the validation data
     for m, model in enumerate(models):
@@ -203,70 +227,56 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode=''):
         model_names.append(str(model))
         print(f'Model {m+1} of {len(models)}.')
 
-        if mode == 'data_aug':
-            # Concatenate the observed and augmented data and convert to arrays
-            X_train_arr = pd.concat([X_train, X_train_aug]).values
-            y_train_arr = pd.concat([y_train, y_train_aug]).values
-            X_val_arr = pd.concat([X_val, X_val_aug]).values
-            y_val_arr = pd.concat([y_val, y_val_aug]).values
+        for i, train_val_split in enumerate(train_val_splits):
 
-            # Calculate the relative weight of the obs/mod data
-            weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
-            sample_weight = np.concatenate((np.ones(len_X_obs_train), 
-                                            np.full(len_X_aug_train, weight_aug)))
-        else:
-            # Convert the dataframes to arrays
-            X_train_arr = X_train.values
-            y_train_arr = y_train.values
-            X_val_arr = X_val.values
-            y_val_arr = y_val.values
-            sample_weight = None
+            if mode == 'data_aug':
 
-        # Create and fit the model, then find the loss
-        model.create_model(X_train.shape[1])
-        model.fit(X=X_train_arr, y=y_train_arr, X_val=X_val_arr,
-                  y_val=y_val_arr, sample_weight=sample_weight)
-        loss = model.test(X=X_val_arr, y=y_val_arr)
-        losses[m] = loss
+                # Unpack the training and validation data
+                X_train, X_val, y_train, y_val, X_train_aug, X_val_aug, y_train_aug, y_val_aug = train_val_split
+
+                # Define the lengths of the training observed and augmented data 
+                len_X_obs_train = len(X_train)
+                len_X_aug_train = len(X_train_aug)
+
+                # Concatenate the observed and augmented data and convert to arrays
+                X_train_arr = pd.concat([X_train, X_train_aug]).values
+                y_train_arr = pd.concat([y_train, y_train_aug]).values
+                X_val_arr = pd.concat([X_val, X_val_aug]).values
+                y_val_arr = pd.concat([y_val, y_val_aug]).values
+
+                # Calculate the relative weight of the obs/mod data
+                weight_aug = model.hyperparameters.get('rel_weight', 1) * len_X_obs_train / len_X_aug_train
+                sample_weight = np.concatenate((np.ones(len_X_obs_train), 
+                                                np.full(len_X_aug_train, weight_aug)))
+            else:
+                # Unpack the training and validation data
+                X_train, X_val, y_train, y_val = train_val_split
+
+                # Convert the dataframes to arrays
+                X_train_arr = X_train.values
+                y_train_arr = y_train.values
+                X_val_arr = X_val.values
+                y_val_arr = y_val.values
+                sample_weight = None
+
+            # Create and fit the model, then find the loss
+            model.create_model(X_train.shape[1])
+            model.fit(X=X_train_arr, y=y_train_arr, X_val=X_val_arr,
+                    y_val=y_val_arr, sample_weight=sample_weight)
+            loss = model.test(X=X_val_arr, y=y_val_arr)
+            losses[m, i] = loss
 
     # Select the best model
-    best_model = models[np.argmin(losses)]
+    mean_loss = np.mean(losses, axis=1)
+    best_model = models[np.argmin(mean_loss)]
 
-    # If in data augmentation, tune the relative weight of the obs/mod data
-    if mode == 'data_aug':
-        models_rw = []
-        losses_rw = np.zeros(len(rel_weight_vals))
-        model_rw_1 = best_model
-        X_train_arr = pd.concat([X_train, X_train_aug]).values
-        y_train_arr = pd.concat([y_train, y_train_aug]).values
-        X_val_arr = pd.concat([X_val, X_val_aug]).values
-        y_val_arr = pd.concat([y_val, y_val_aug]).values
-
-        for weight_idx, rel_weight in enumerate(rel_weight_vals):
-            model_names.append(str(best_model) + f'_rw_{rel_weight}')
-            if rel_weight == 1:
-                best_model = model_rw_1
-                loss = np.min(losses)
-            else:
-                print(f'Relative weight {weight_idx+1} of {len(models)}.')
-                weight_aug = rel_weight * len_X_obs_train / len_X_aug_train
-                sample_weight = np.concatenate((np.ones(len_X_obs_train),
-                                                np.full(len_X_aug_train, weight_aug)))
-                best_model.create_model(X_train.shape[1])
-                best_model.fit(X=X_train_arr, y=y_train_arr, 
-                               sample_weight=sample_weight)
-                loss = best_model.test(X=X_val_arr, y=y_val_arr)
-            
-            models_rw.append(best_model)
-            losses_rw[weight_idx] = loss
-
-        # Select the best model
-        best_rw = rel_weight_vals[np.argmin(losses_rw)]
-        best_model = models_rw[np.argmin(losses_rw)]
-        losses = np.append(losses, losses_rw)
-
-    # Save the model hyperparameters and their losses as a csv
-    df_losses = pd.DataFrame({'MSE (mean)':losses,'HP':model_names})
+    # Save the model hyperparameters and their losses as a csv   
+    if losses.shape[1] == 1:
+        df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})
+    else:
+        data = {f'MSE (Split {i+1})': losses[:, i] for i in range(losses.shape[1])}
+        data.update({'MSE (mean)': mean_loss, 'HP': model_names})
+        df_losses = pd.DataFrame(data)
     df_losses.set_index('HP', inplace=True)
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
