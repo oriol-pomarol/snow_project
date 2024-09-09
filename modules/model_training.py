@@ -280,8 +280,9 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True)
     df_losses.set_index('HP', inplace=True)
     df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
 
-    # Train the best model on all train/val data
-    X_train, y_train = pd.concat(X), pd.concat(y)
+    # Train the best model on all the data
+    X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
+                                                      test_size=0.2, random_state=10)
     
     if mode == 'data_aug':
         X_train_aug, y_train_aug = pd.concat(X_aug), pd.concat(y_aug)
@@ -304,9 +305,10 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True)
         y_train_arr = y_train.values
         sample_weight = None
 
+    # Create and fit the best model
     best_model.create_model(X[0].shape[1])
-    history = best_model.fit(X=X_train_arr, y=y_train_arr,
-                             sample_weight=sample_weight)
+    history = best_model.fit(X=X_train_arr, y=y_train_arr, X_val=X_val.values,
+                            y_val=y_val.values, sample_weight=sample_weight)
 
     if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
         # Save the training history
@@ -586,6 +588,11 @@ def temporal_data_split(dfs, split_start, split_size, trn_stations):
     df_split_dates = pd.DataFrame(columns=['start_date', 'end_date'])
 
     for i, df in enumerate(dfs):
+
+        # Initialize the train and test dataframe lists
+        dfs_train = []
+        dfs_test = []
+
         # Define the train/test split indices
         split_start_idx = int(len(df)*split_start)
         split_end_idx = split_start_idx + int(len(df)*split_size)
@@ -596,9 +603,9 @@ def temporal_data_split(dfs, split_start, split_size, trn_stations):
         df_split_dates.loc[trn_stations[i]] = [split_start_date, split_end_date]
 
         # Split the data into train and test
-        dfs_train = pd.concat([df.iloc[:split_start_idx, :],
-                               df.iloc[split_end_idx:, :]])
-        dfs_test = df.iloc[split_start_idx:split_end_idx, :]
+        dfs_train.append(pd.concat([df.iloc[:split_start_idx, :],
+                                    df.iloc[split_end_idx:, :]]))
+        dfs_test.append(df.iloc[split_start_idx:split_end_idx, :])
 
     # Save the train_test split dates as a csv
     df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
