@@ -3,36 +3,20 @@ import pandas as pd
 import joblib
 from tensorflow import keras
 import os
+from config import cfg
 
 def forward_simulation():
-    
-    # Define what lag value to use
-    lag = 14
-
-    # List of station names
-    station_names = [
-        "cdp",
-        "oas",
-        "obs",
-        "ojp",
-        "rme",
-        "sap",
-        "snb",
-        "sod",
-        "swa",
-        "wfj",
-    ]
 
     # Load the preprocessed data
     dict_dfs = {}
-    for station_name in station_names:
+    for station_name in cfg.station_names:
         # Load the data
         df_station = pd.read_csv(
             os.path.join(
                 "data",
                 "preprocessed",
-                f"data_daily_lag_{lag}",
-                f"df_{station_name}_lag_{lag}.csv",
+                f"data_daily_lag_{cfg.lag}",
+                f"df_{station_name}_lag_{cfg.lag}.csv",
             ), index_col=0
         )
 
@@ -43,11 +27,11 @@ def forward_simulation():
     list_models = []
     for mode in ['dir_pred', 'err_corr', 'data_aug']:
         model, model_type = load_model(mode)
-        list_models.append(Model(mode, model, model_type, lag))
+        list_models.append(Model(mode, model, model_type, cfg.lag))
 
     # Simulate SWE for each station
     for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
-        print(f"Simulating station {station_idx+1} of {len(station_names)}.")
+        print(f"Simulating station {station_idx+1} of {len(cfg.station_names)}.")
 
         # Initialize a vector for the predicted SWE
         drop_cols_X = ["obs_swe", "delta_obs_swe", "mod_swe"]
@@ -109,10 +93,10 @@ def load_model(mode):
                 break
     return model, model_type
 
-def preprocess_row_lstm(X, lag):
+def preprocess_row_lstm(X):
 
     # Reshape the array by splitting it along the last axis
-    transformed_X = X.reshape((X.shape[0] // lag, lag))
+    transformed_X = X.reshape((X.shape[0] // cfg.lag, cfg.lag))
 
     # Transpose the subarrays to get the desired structure
     transposed_X = np.transpose(transformed_X)
@@ -140,14 +124,14 @@ class Model:
         if (self.mode == 'dir_pred') or (self.mode == 'data_aug'):
             X_row = np.array(tuple_X_row[:-1])
             if self.model_type == 'lstm':
-                X_row = preprocess_row_lstm(X_row, self.lag)
+                X_row = preprocess_row_lstm(X_row)
             X_row = np.expand_dims(X_row, axis=0)
 
         # Preprocess the data for the err_corr mode
         elif self.mode == 'err_corr':
             if self.model_type == 'lstm':
                 meteo_data = np.array(tuple_X_row[:-1])
-                meteo_X = preprocess_row_lstm(meteo_data, self.lag)
+                meteo_X = preprocess_row_lstm(meteo_data)
                 X_row = [meteo_X, tuple_X_row[-1]]
             else:
                 X_row = np.expand_dims(np.array(tuple_X_row), axis=0)

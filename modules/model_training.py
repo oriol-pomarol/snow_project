@@ -11,39 +11,20 @@ from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
 import os
 import joblib
+from config import cfg
 
 def model_training():
 
-    # Define the type of split to use
-    temporal_split = True
-
-    # Define what lag value to use
-    lag = 14
-
-    # List of station names
-    station_names = [
-        "cdp",
-        "oas",
-        "obs",
-        "ojp",
-        "rme",
-        "sap",
-        "snb",
-        "sod",
-        "swa",
-        "wfj",
-    ]
-
     # Load the preprocessed data
     dict_dfs = {}
-    for station_name in station_names:
+    for station_name in cfg.station_names:
         # Load the data
         df_station = pd.read_csv(
             os.path.join(
                 "data",
                 "preprocessed",
-                f"data_daily_lag_{lag}",
-                f"df_{station_name}_lag_{lag}.csv",
+                f"data_daily_lag_{cfg.lag}",
+                f"df_{station_name}_lag_{cfg.lag}.csv",
             ), index_col=0
         )
 
@@ -67,7 +48,7 @@ def model_training():
     aug_dfs = [df.loc[df['delta_mod_swe'] != -1 * df['mod_swe'], :].dropna()
                 for df in aug_dfs]
 
-    if temporal_split:
+    if cfg.temporal_split:
         # Define the relative size and start of the train/test split
         split_size = 0.2
         split_start = 0.0
@@ -92,7 +73,7 @@ def model_training():
     y_obs = [df.iloc[:, -2] for df in trn_dfs]
     # X_test = [df.iloc[:, :-4] for df in test_dfs]
     # y_test = [df.iloc[:, -2] for df in test_dfs]
-    model_dp = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'dir_pred')
+    model_dp = model_selection(X=X_obs, y=y_obs, mode = 'dir_pred')
     # plot_pred_vs_true(model=model_dp, X_train=X_obs, y_train=y_obs,
     #                   X_test=X_test, y_test=y_test, mode='dir_pred')
     print('Direct prediction trained successfully...')
@@ -103,7 +84,7 @@ def model_training():
     y_obs = [df.iloc[:, -2] for df in trn_dfs]
     # X_test = [df.iloc[:, :-4].join(df.iloc[:, -1]) for df in test_dfs]
     # y_test = [df.iloc[:, -2] for df in test_dfs]
-    model_ec = model_selection(X=X_obs, y=y_obs, lag=lag, mode = 'err_corr')
+    model_ec = model_selection(X=X_obs, y=y_obs, mode = 'err_corr')
     # plot_pred_vs_true(model=model_ec, X_train=X_obs, y_train=y_obs,
     #                   X_test=X_test, y_test=y_test, mode='err_corr')
     print('Error correction trained successfully...')
@@ -116,7 +97,7 @@ def model_training():
     y_aug = [df.iloc[:, -2] for df in aug_dfs]
     # X_test = [df.iloc[:, :-4] for df in test_dfs]
     # y_test = [df.iloc[:, -2] for df in test_dfs]
-    model_da = model_selection(X=X_obs, y=y_obs, lag=lag, X_aug=X_aug,
+    model_da = model_selection(X=X_obs, y=y_obs, X_aug=X_aug,
                                y_aug=y_aug, mode = 'data_aug')
     # plot_pred_vs_true(model=model_da, X_train=X_obs, y_train=y_obs,
     #                   X_test=X_test, y_test=y_test, mode='data_aug',
@@ -138,7 +119,7 @@ def model_training():
 # EXTRA FUNCTIONS AND CLASSES
 ####################################################################################
 
-def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True):
+def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     # Initialize the models in a list
     models = []
 
@@ -154,7 +135,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True)
     # Initialize a RF model for each combination of HP
     for max_depth in max_depth_vals:
         for max_samples in max_samples_vals:
-            model = Model(mode, 'rf', lag)
+            model = Model(mode, 'rf', cfg.lag)
             model.set_hyperparameters(max_depth=max_depth,
                                       max_samples=max_samples)
             models.append(model)
@@ -163,25 +144,25 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True)
     for layers in layers_nn_vals:
         for learning_rate in learning_rate_vals:
             for l2_reg in l2_reg_vals:
-                model = Model(mode, 'nn', lag)
+                model = Model(mode, 'nn', cfg.lag)
                 model.set_hyperparameters(layers=layers,
                                           learning_rate=learning_rate,
                                           l2_reg=l2_reg)
                 models.append(model)
 
     # Initialize a LSTM model for each combination of HP
-    if lag > 0:
+    if cfg.lag > 0:
         for layers in layers_lstm_vals:
             for learning_rate in learning_rate_vals:
                 for l2_reg in l2_reg_vals:
-                    model = Model(mode, 'lstm', lag)
+                    model = Model(mode, 'lstm', cfg.lag)
                     model.set_hyperparameters(layers=layers,
                                               learning_rate=learning_rate,
                                               l2_reg=l2_reg)
                     models.append(model)
 
     # Initialize losses and model names for model validation
-    if temporal_split:
+    if cfg.temporal_split:
         losses = np.zeros((len(models), 1))
     else:
         losses = np.zeros((len(models), len(X)))
@@ -190,7 +171,7 @@ def model_selection(X, y, lag, X_aug=[], y_aug=[], mode='', temporal_split=True)
     # Initialize training and validation datasets
     train_val_splits = []
 
-    if temporal_split:
+    if cfg.temporal_split:
         # Make a random split between training and validation data
         X_train, X_val, y_train, y_val = \
             train_test_split(pd.concat(X), pd.concat(y),
@@ -497,8 +478,8 @@ class Model:
                 X = X[:,:-1]
                 X_val_mod = X_val[:,-1]
                 X_val = X_val[:,:-1]
-            X = preprocess_data_lstm(X, self.lag)
-            X_val = preprocess_data_lstm(X_val, self.lag)      
+            X = preprocess_data_lstm(X)
+            X_val = preprocess_data_lstm(X_val)      
         if self.model_type in ['nn', 'lstm']:
             # Define early stopping callback
             callbacks = []
@@ -520,7 +501,7 @@ class Model:
             if self.mode == 'err_corr':
                 X_mod = X[:,-1]
                 X = X[:,:-1]
-            X = preprocess_data_lstm(X, self.lag)
+            X = preprocess_data_lstm(X)
         if self.model_type == 'lstm' and self.mode == 'err_corr':
             y_pred = self.model.predict([X,X_mod])
         else:
@@ -532,7 +513,7 @@ class Model:
             if self.mode == 'err_corr':
                 X_mod = X[:,-1]
                 X = X[:,:-1]
-            X = preprocess_data_lstm(X, self.lag)
+            X = preprocess_data_lstm(X)
         if self.model_type == 'lstm' and self.mode == 'err_corr':
             y_pred = self.model.predict([X,X_mod])
         else:
@@ -564,15 +545,15 @@ class Model:
 
 ####################################################################################
 
-def preprocess_data_lstm(X, lag):
+def preprocess_data_lstm(X):
     # Get the shape of the input array
     shape = X.shape
 
     # Calculate the number of subarrays along the last axis
-    num_subarrays = shape[-1] // lag
+    num_subarrays = shape[-1] // cfg.lag
 
     # Reshape the array by splitting it along the last axis
-    new_shape = shape[:-1] + (num_subarrays, lag)
+    new_shape = shape[:-1] + (num_subarrays, cfg.lag)
     transformed_X = X.reshape(new_shape)
 
     # Transpose the subarrays to get the desired structure

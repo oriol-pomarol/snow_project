@@ -4,30 +4,11 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
+from config import cfg
 
 def simulation_analysis(station_years=[]):
 
-    # Define the type of split to use
-    temporal_split = True
-
-    # Define what lag value to use
-    lag = 14
-
-    # List of station names
-    station_names = [
-        "cdp",
-        "oas",
-        "obs",
-        "ojp",
-        "rme",
-        "sap",
-        "snb",
-        "sod",
-        "swa",
-        "wfj",
-    ]
-
-    if temporal_split:
+    if cfg.temporal_split:
         # Load the train/test into a dictionary
         path = os.path.join("results", "split_dates.csv")
         df_split_dates = pd.read_csv(path, index_col=0)
@@ -37,10 +18,10 @@ def simulation_analysis(station_years=[]):
 
     # Load the station data
     dict_dfs = {}
-    for station_name in station_names:
+    for station_name in cfg.station_names:
         # Load the obs and mod data
-        dir_path = os.path.join("data", "preprocessed", f"data_daily_lag_{lag}")
-        filename = f"df_{station_name}_lag_{lag}.csv"
+        dir_path = os.path.join("data", "preprocessed", f"data_daily_lag_{cfg.lag}")
+        filename = f"df_{station_name}_lag_{cfg.lag}.csv"
         df_obs = pd.read_csv(os.path.join(dir_path, filename), index_col=0)
 
         # Subset only the SWE columns
@@ -63,12 +44,12 @@ def simulation_analysis(station_years=[]):
     df_nnse = pd.DataFrame(columns=sim_modes)
 
     # Find the nNSE and store them in the dataframe for each station
-    for station_name in station_names:
+    for station_name in cfg.station_names:
 
         # Clean the data
         df_station_clean = dict_dfs[station_name].dropna()
 
-        if temporal_split and station_name in dict_split_dates:
+        if cfg.temporal_split and station_name in dict_split_dates:
             # Split the data into training and testing sets
             split_date = dict_split_dates[station_name]
             df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
@@ -101,7 +82,7 @@ def simulation_analysis(station_years=[]):
 
         # Initialize the figure depending on the number of stations
         if station_name == 'all':
-            station_names_plot = station_names
+            station_names_plot = cfg.station_names
             fig, axs = plt.subplots(5, 2, figsize=(20, 25))
             axs = axs.flatten()
         
@@ -120,7 +101,7 @@ def simulation_analysis(station_years=[]):
             ax = axs[station_idx]
 
             # Mask the measurements and find the number of data points
-            if temporal_split:
+            if cfg.temporal_split:
                 split_date = dict_split_dates.get(station_name, None)
             else:
                 split_date = None
