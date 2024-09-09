@@ -6,6 +6,10 @@ from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
 
 def simulation_analysis(station_years=[]):
+
+    # Define the type of split to use
+    temporal_split = True
+
     # Define what lag value to use
     lag = 14
 
@@ -23,11 +27,12 @@ def simulation_analysis(station_years=[]):
         "wfj",
     ]
 
-    # Load the train/test into a dictionary
-    path = os.path.join("results", "split_dates.csv")
-    df_split_dates = pd.read_csv(path, index_col=0)
-    dict_split_dates = {index: row.tolist() for index, row
-                        in df_split_dates.iterrows()}
+    if temporal_split:
+        # Load the train/test into a dictionary
+        path = os.path.join("results", "split_dates.csv")
+        df_split_dates = pd.read_csv(path, index_col=0)
+        dict_split_dates = {index: row.tolist() for index, row
+                            in df_split_dates.iterrows()}
 
 
     # Load the station data
@@ -58,22 +63,32 @@ def simulation_analysis(station_years=[]):
     df_nnse = pd.DataFrame(columns=sim_modes)
 
     # Find the nNSE and store them in the dataframe for each station
-    for station_name, split_date in dict_split_dates.items():
+    for station_name in station_names:
+
+        # Clean the data
         df_station_clean = dict_dfs[station_name].dropna()
+
+        if temporal_split and station_name in dict_split_dates:
+            # Split the data into training and testing sets
+            split_date = dict_split_dates[station_name]
+            df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
+            df_test = mask_measurements_by_year(df_station_clean, 'test', split_date)
         
-        # Split the data into training and testing sets based on the years
-        df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
-        df_test = mask_measurements_by_year(df_station_clean, 'test', split_date)
+            # Calculate the nNSE for the training set and append it to the df
+            obs_swe_train = df_train['obs_swe']
+            nnse_train = [calculate_nNSE(obs_swe_train, df_train[mode]) for mode in sim_modes]
+            df_nnse.loc[station_name + '_train'] = nnse_train
+            
+            # Calculate the nNSE for the testing set and append it to the df
+            obs_swe_test = df_test['obs_swe']
+            nnse_test = [calculate_nNSE(obs_swe_test, df_test[mode]) for mode in sim_modes]
+            df_nnse.loc[station_name + '_test'] = nnse_test
         
-        # Calculate the nNSE for the training set and append it to the df
-        obs_swe_train = df_train['obs_swe']
-        nnse_train = [calculate_nNSE(obs_swe_train, df_train[mode]) for mode in sim_modes]
-        df_nnse.loc[station_name + '_train'] = nnse_train
-        
-        # Calculate the nNSE for the testing set and append it to the df
-        obs_swe_test = df_test['obs_swe']
-        nnse_test = [calculate_nNSE(obs_swe_test, df_test[mode]) for mode in sim_modes]
-        df_nnse.loc[station_name + '_test'] = nnse_test
+        else:
+            # Calculate the nNSE of the whole station and append it to the df
+            obs_swe_train = df_station_clean['obs_swe']
+            nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
+            df_nnse.loc[station_name] = nnse_train
 
     # Save the nNSE as csv
     df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
@@ -105,7 +120,10 @@ def simulation_analysis(station_years=[]):
             ax = axs[station_idx]
 
             # Mask the measurements and find the number of data points
-            split_date = dict_split_dates.get(station_name, None)
+            if temporal_split:
+                split_date = dict_split_dates.get(station_name, None)
+            else:
+                split_date = None
             df_masked = mask_measurements_by_year(df_station, year, split_date)
             df_masked_clean = df_masked.dropna()
             num_data_points = df_masked_clean['obs_swe'].count()
