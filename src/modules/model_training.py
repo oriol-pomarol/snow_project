@@ -9,28 +9,19 @@ from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
-import os
 import joblib
-from config import cfg
+from config import cfg, paths
 
 def model_training():
 
     # Load the preprocessed data
     dict_dfs = {}
+
     for station_name in cfg.station_names:
-        # Load the data
-        df_station = pd.read_csv(
-            os.path.join(
-                "data",
-                "preprocessed",
-                f"data_daily_lag_{cfg.lag}",
-                f"df_{station_name}_lag_{cfg.lag}.csv",
-            ), index_col=0
-        )
-
-        # Add the data to the dictionary
+        df_station = pd.read_csv(paths.proc_data /
+                                 f"df_{station_name}_lag_{cfg.lag}.csv",
+                                 index_col=0)
         dict_dfs[station_name] = df_station
-
 
     # Set a random seed for tensorflow and limit the warnings
     tf.random.set_seed(10)
@@ -105,13 +96,12 @@ def model_training():
     print('Data augmentation trained successfully...')
 
     # Save the models
-    source_folder = os.path.join('results', 'models')
     for model, mode in zip([model_dp, model_ec, model_da],
                            ['dir_pred', 'err_corr', 'data_aug']):
         if 'rf' in str(model):
-            joblib.dump(model.model, os.path.join(source_folder, f'{mode}.joblib'))
+            joblib.dump(model.model, paths.models / f'{mode}.joblib')
         elif ('nn' in str(model)) or ('lstm' in str(model)):
-            model.model.save(os.path.join(source_folder, f'{mode}.h5'))
+            model.model.save(paths.models / f'{mode}.h5')
 
     return
 
@@ -259,7 +249,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
         data.update({'MSE (mean)': mean_loss, 'HP': model_names})
         df_losses = pd.DataFrame(data)
     df_losses.set_index('HP', inplace=True)
-    df_losses.to_csv(os.path.join('results', f'model_losses_{mode}.csv'))
+    df_losses.to_csv(paths.outputs / f'model_losses_{mode}.csv')
 
     # Train the best model on all the data
     X_train, X_val, y_train, y_val = train_test_split(pd.concat(X), pd.concat(y),
@@ -294,7 +284,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
     if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
         # Save the training history
         history_df = pd.DataFrame(history.history)
-        history_df.to_csv(os.path.join('results', f'train_history_{mode}.csv'))
+        history_df.to_csv(paths.outputs / f'train_history_{mode}.csv')
                           
         # Plot the MSE history of the training
         plt.figure()
@@ -304,7 +294,7 @@ def model_selection(X, y, X_aug=[], y_aug=[], mode=''):
         plt.yscale('log')
         plt.xlabel('Epoch')
         plt.ylabel('MSE')
-        plt.savefig(os.path.join('results',f'train_history_{mode}.png'))
+        plt.savefig(paths.figures / f'train_history_{mode}.png')
 
     return best_model
 
@@ -377,7 +367,7 @@ def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode,
                 verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(os.path.join('results', f'pred_vs_true_{mode}.png'))
+    plt.savefig(paths.figures / f'pred_vs_true_{mode}.png')
 
     # Create scatter plot for test data
     fig_test = plt.figure(figsize=(12, 7))
@@ -398,19 +388,19 @@ def plot_pred_vs_true(model, X_train, y_train, X_test, y_test, mode,
         verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(os.path.join('results', f'pred_vs_true_test_{mode}.png'))
+    plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
 
     # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train_arr, 'PredictedValues': y_train_pred})
-    train_df.to_csv(os.path.join('results', f'pred_vs_true_{mode}.csv'), index=False)
+    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
 
     if mode == 'data_aug':
         aug_df = pd.DataFrame({'TrueValues': y_aug_arr, 'PredictedValues': y_aug_pred})
-        aug_df.to_csv(os.path.join('results', f'pred_vs_true_{mode}_aug.csv'), index=False)
+        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
 
     # Save the true and predicted values as csv
     test_df = pd.DataFrame({'TrueValues': y_test_arr, 'PredictedValues': y_test_pred})
-    test_df.to_csv(os.path.join('results', f'pred_vs_true_test_{mode}.csv'), index=False)
+    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
 
 ###############################################################################
 
@@ -589,6 +579,6 @@ def temporal_data_split(dfs, split_start, split_size, trn_stations):
         dfs_test.append(df.iloc[split_start_idx:split_end_idx, :])
 
     # Save the train_test split dates as a csv
-    df_split_dates.to_csv(os.path.join('results', 'split_dates.csv'))
+    df_split_dates.to_csv(paths.outputs / 'split_dates.csv')
 
     return dfs_train, dfs_test

@@ -2,25 +2,17 @@ import numpy as np
 import pandas as pd
 import joblib
 from tensorflow import keras
-import os
-from config import cfg
+from os import listdir
+from config import cfg, paths
 
 def forward_simulation():
 
     # Load the preprocessed data
     dict_dfs = {}
     for station_name in cfg.station_names:
-        # Load the data
-        df_station = pd.read_csv(
-            os.path.join(
-                "data",
-                "preprocessed",
-                f"data_daily_lag_{cfg.lag}",
-                f"df_{station_name}_lag_{cfg.lag}.csv",
-            ), index_col=0
-        )
-
-        # Add the data to the dictionary
+        df_station = pd.read_csv(paths.proc_data /
+                                 f"df_{station_name}_lag_{cfg.lag}.csv",
+                                 index_col=0)
         dict_dfs[station_name] = df_station
     
     # Load the models
@@ -56,10 +48,7 @@ def forward_simulation():
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr.T, index=df_station_X.index, 
                               columns=['dir_pred', 'err_corr', 'data_aug'])
-        save_path = os.path.join('results', 'simulated_swe')
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        df_swe.to_csv(os.path.join(save_path, f'df_{station_name}_sim_swe.csv'))
+        df_swe.to_csv(paths.simulated_swe / f'df_{station_name}_sim_swe.csv')
 
     return
 
@@ -69,7 +58,7 @@ def forward_simulation():
 
 def load_model(mode):
     # Find the model filename
-    files_in_folder = os.listdir(os.path.join('results', 'models'))
+    files_in_folder = listdir(paths.models)
     model_filename = None
     for file in files_in_folder:
         if mode in file:
@@ -82,10 +71,10 @@ def load_model(mode):
     # Load the model
     if '.joblib' in model_filename:
         model_type = 'rf'
-        model = joblib.load(os.path.join('results', 'models', model_filename))
+        model = joblib.load(paths.models / model_filename)
     if '.h5' in model_filename:
         model_type = 'nn'
-        model = keras.models.load_model(os.path.join('results', 'models', model_filename))
+        model = keras.models.load_model(paths.models / model_filename)
         # Check if the model contains an LSTM layer
         for layer in model.layers:
             if isinstance(layer, keras.layers.LSTM):

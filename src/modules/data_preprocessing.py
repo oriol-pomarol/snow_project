@@ -2,6 +2,8 @@ import xarray as xr
 import os
 import pandas as pd
 from timezonefinder import TimezoneFinder
+from os import listdir
+from config import cfg, paths
 from .meteo_preprocess_functions import (
     positive_integral,
     daytime_average,
@@ -11,64 +13,39 @@ from .meteo_preprocess_functions import (
 
 
 def data_preprocessing():
-    # Set the amount of lagged days to add
-    lag = 14
 
     # Read the station data
     df_stations = pd.read_csv(
-        os.path.join("data", "Menard_Essery_2019.tab"),
+        paths.raw_data / "Menard_Essery_2019.tab",
         delimiter="\t",
         skiprows=35
     )
-
-    # Create folder for the preprocessed data if it doesn't exist
-    folder_path = os.path.join("data", "preprocessed", f"data_daily_lag_{lag}")
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
 
     # Save the in-situ meteo and observed data as separate dataframes
     data_info_met = df_stations[10:20].reset_index()
     data_info_obs = df_stations[20:30].reset_index()
 
-    # List of station names
-    station_names = [
-        "cdp",
-        "oas",
-        "obs",
-        "ojp",
-        "rme",
-        "sap",
-        "snb",
-        "sod",
-        "swa",
-        "wfj",
-    ]
-
     # Iterate over the stations
-    for station_idx, station_name in enumerate(station_names):
+    for station_idx, station_name in enumerate(cfg.station_names):
         print(
             "Loading and preprocessing data from station "
-            f"{station_idx + 1} of {len(station_names)}..."
+            f"{station_idx + 1} of {len(cfg.station_names)}..."
         )
 
         # Get the paths to the files (meteo and observed data)
         filename_met = data_info_met["File name"][station_idx]
         filename_obs = data_info_obs["File name"][station_idx]
 
-        file_path_met = os.path.join("data",
-                                     "ESM-SnowMIP_all",
-                                     f"{filename_met}.nc")
-        file_path_obs = os.path.join("data",
-                                     "ESM-SnowMIP_all",
-                                     f"{filename_obs}.nc")
+        file_path_met = paths.raw_data / "ESM-SnowMIP_all" / f"{filename_met}.nc"
+        file_path_obs = paths.raw_data / "ESM-SnowMIP_all" / f"{filename_obs}.nc"
 
         # Obtain a pandas DataFrame (meteo and observed data)
         df_met = xr.open_dataset(file_path_met).to_dataframe()
         df_obs = xr.open_dataset(file_path_obs).to_dataframe()
 
         # Obtain the dataset (model data)
-        dir_path_mod = os.path.join("data", "simus_CROCUS", station_name)
-        file_path_mod = os.path.join(dir_path_mod, os.listdir(dir_path_mod)[0])
+        dir_path_mod = paths.raw_data / "simus_CROCUS" / station_name
+        file_path_mod = os.path.join(dir_path_mod, listdir(dir_path_mod)[0])
         dataset_mod = xr.open_dataset(file_path_mod, decode_times=False)
 
         # Get the location of the station
@@ -76,8 +53,7 @@ def data_preprocessing():
         lng_station = data_info_met.loc[station_idx, "Longitude"]
 
         # Pre-process the data
-        df_met_preprocessed = met_preprocessing(df_met, lag,
-                                                lat_station, lng_station)
+        df_met_preprocessed = met_preprocessing(df_met, lat_station, lng_station)
         df_obs_preprocessed = obs_preprocessing(df_obs)
         df_mod_preprocessed = mod_preprocessing(dataset_mod)
 
@@ -92,14 +68,7 @@ def data_preprocessing():
         df_data["delta_mod_swe"] = df_data["mod_swe"].diff().shift(-1)
 
         # Save the DataFrame
-        df_data.to_csv(
-            os.path.join(
-                "data",
-                "preprocessed",
-                f"data_daily_lag_{lag}",
-                f"df_{station_name}_lag_{lag}.csv",
-            )
-        )
+        df_data.to_csv(paths.proc_data / f"df_{station_name}_lag_{cfg.lag}.csv")
 
     return
 
@@ -163,7 +132,7 @@ def mod_preprocessing(dataset_mod):
 ###############################################################################
 
 
-def met_preprocessing(df_met, lag, lat_station, lng_station):
+def met_preprocessing(df_met, lat_station, lng_station):
     # Define the names of the aggregated meteorological variables
     names_met_agg = [
         "Psurf_avg",
@@ -223,6 +192,6 @@ def met_preprocessing(df_met, lag, lat_station, lng_station):
     df_agg = change_meteo_units(df_agg)
 
     # Add lagged values to the DataFrame
-    df_agg_lagged = add_lagged_values(df_agg, lag)
+    df_agg_lagged = add_lagged_values(df_agg)
 
     return df_agg_lagged

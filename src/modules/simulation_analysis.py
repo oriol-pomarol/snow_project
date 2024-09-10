@@ -15,7 +15,6 @@ def simulation_analysis(station_years=[]):
         dict_split_dates = {index: row.tolist() for index, row
                             in df_split_dates.iterrows()}
 
-
     # Load the station data
     dict_dfs = {}
     for station_name in cfg.station_names:

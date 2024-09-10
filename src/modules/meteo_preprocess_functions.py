@@ -3,6 +3,7 @@ import pandas as pd
 import ephem
 import datetime
 import pytz
+from config import cfg
 
 def calculate_sunrise_sunset(latitude, longitude, date, timezone):
     # Create an observer object
@@ -130,12 +131,12 @@ def change_meteo_units(df_agg):
 
 ####################################################################################
 
-def add_lagged_values(df, lag):
+def add_lagged_values(df):
     new_df = df.copy()
     
     for i, col in enumerate(df.columns):
-        new_df = pd.concat([new_df.iloc[:, :i*(lag+1)+1],
+        new_df = pd.concat([new_df.iloc[:, :i*(cfg.lag+1)+1],
                             pd.DataFrame({f'{col}_lag_{j}':df[col].shift(j) \
-                                          for j in range(1, lag+1)}),
-                            new_df.iloc[:, i*(lag+1)+1:]], axis=1)    
+                                          for j in range(1, cfg.lag+1)}),
+                            new_df.iloc[:, i*(cfg.lag+1)+1:]], axis=1)    
     return new_df

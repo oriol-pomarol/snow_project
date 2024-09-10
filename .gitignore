@@ -1,0 +1,13 @@
+results/**
+!results/**/
+!.gitkeep
+
+data/**
+!data/**/
+!.gitkeep
+
+src/modules/__pycache__
+src/modules/unused
+
+job_scheduler.sh
+snow_code.code-workspace
