@@ -48,7 +48,7 @@ def forward_simulation():
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr.T, index=df_station_X.index, 
                               columns=['dir_pred', 'err_corr', 'data_aug'])
-        df_swe.to_csv(paths.simulated_swe / f'df_{station_name}_sim_swe.csv')
+        df_swe.to_csv(paths.temp_data / f'df_{station_name}_sim_swe.csv')
 
     return
 

@@ -579,6 +579,6 @@ def temporal_data_split(dfs, split_start, split_size, trn_stations):
         dfs_test.append(df.iloc[split_start_idx:split_end_idx, :])
 
     # Save the train_test split dates as a csv
-    df_split_dates.to_csv(paths.outputs / 'split_dates.csv')
+    df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
 
     return dfs_train, dfs_test

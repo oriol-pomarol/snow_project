@@ -1,35 +1,31 @@
 import pandas as pd
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
-from config import cfg
+from config import cfg, paths
 
 def simulation_analysis(station_years=[]):
 
     if cfg.temporal_split:
         # Load the train/test into a dictionary
-        path = os.path.join("results", "split_dates.csv")
-        df_split_dates = pd.read_csv(path, index_col=0)
-        dict_split_dates = {index: row.tolist() for index, row
-                            in df_split_dates.iterrows()}
+        df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=0)
+        dict_split_dates = {index: row.tolist() for index, row in df_split_dates.iterrows()}
 
     # Load the station data
     dict_dfs = {}
     for station_name in cfg.station_names:
         # Load the obs and mod data
-        dir_path = os.path.join("data", "preprocessed", f"data_daily_lag_{cfg.lag}")
+        dir_path = paths.proc_data / f"data_daily_lag_{cfg.lag}"
         filename = f"df_{station_name}_lag_{cfg.lag}.csv"
-        df_obs = pd.read_csv(os.path.join(dir_path, filename), index_col=0)
+        df_obs = pd.read_csv(dir_path / filename, index_col=0)
 
         # Subset only the SWE columns
         df_obs = df_obs[["obs_swe", "mod_swe"]]
 
         # Load the ML simulated data
-        dir_path = os.path.join("results", "simulated_swe")
         filename = f"df_{station_name}_sim_swe.csv"
-        df_sim = pd.read_csv(os.path.join(dir_path, filename), index_col=0)
+        df_sim = pd.read_csv(paths.temp_data / filename, index_col=0)
 
         # Join both dataframes by index
         df_station = df_obs.join(df_sim, how="outer")
@@ -71,7 +67,7 @@ def simulation_analysis(station_years=[]):
             df_nnse.loc[station_name] = nnse_train
 
     # Save the nNSE as csv
-    df_nnse.to_csv(os.path.join('results', 'fwd_sim_nnse.csv'))
+    df_nnse.to_csv(paths.outputs / 'fwd_sim_nnse.csv')
 
     # Plot the results
     print('Plotting the results...')  
@@ -126,7 +122,7 @@ def simulation_analysis(station_years=[]):
             ax.set_xlabel('Date')
             ax.set_ylabel('SWE')
             ax.set_title(f'{station_name.upper()} {year}')
-            plt.savefig(os.path.join('results', f'fwd_sim_{station_name}_{year}.png'))
+            plt.savefig(paths.figures / f'fwd_sim_{station_name}_{year}.png')
 
 ###############################################################################
 # EXTRA FUNCTIONS

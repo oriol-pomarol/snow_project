@@ -27,9 +27,9 @@ class paths:
     # DATA PATHS
     proc_data: Path = root / "data" / "preprocessed"
     raw_data: Path = root / "data" / "raw"
+    temp_data: Path = root / "data" / "temp"
 
     # RESULTS PATHS
     models: Path = root / "results" / "models"
     figures: Path = root / "results" / "figures"
     outputs: Path = root / "results" / "outputs"
-    simulated_swe: Path = outputs / "simulated_swe"
