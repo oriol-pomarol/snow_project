@@ -11,17 +11,12 @@ from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
 import joblib
 from config import cfg, paths
+from .auxiliary_functions import load_processed_data, preprocess_data_lstm
 
 def model_training():
 
-    # Load the preprocessed data
-    dict_dfs = {}
-
-    for station_name in cfg.station_names:
-        df_station = pd.read_csv(paths.proc_data /
-                                 f"df_{station_name}_lag_{cfg.lag}.csv",
-                                 index_col=0)
-        dict_dfs[station_name] = df_station
+    # Load the processed data
+    dict_dfs = load_processed_data()
 
     # Set a random seed for tensorflow and limit the warnings
     tf.random.set_seed(10)
@@ -535,24 +530,6 @@ class Model:
 
 ####################################################################################
 
-def preprocess_data_lstm(X):
-    # Get the shape of the input array
-    shape = X.shape
-
-    # Calculate the number of subarrays along the last axis
-    num_subarrays = shape[-1] // cfg.lag
-
-    # Reshape the array by splitting it along the last axis
-    new_shape = shape[:-1] + (num_subarrays, cfg.lag)
-    transformed_X = X.reshape(new_shape)
-
-    # Transpose the subarrays to get the desired structure
-    transformed_X = np.transpose(transformed_X, axes=(0, 2, 1))
-
-    return transformed_X
-
-####################################################################################
-
 def temporal_data_split(dfs, split_start, split_size, trn_stations):
     
     # Define a dataframe to store the split dates
@@ -582,3 +559,6 @@ def temporal_data_split(dfs, split_start, split_size, trn_stations):
     df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
 
     return dfs_train, dfs_test
+
+###############################################################################
+

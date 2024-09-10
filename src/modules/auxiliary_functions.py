@@ -3,7 +3,48 @@ import pandas as pd
 import ephem
 import datetime
 import pytz
-from config import cfg
+from config import cfg, paths
+
+###############################################################################
+# GENERAL FUNCTIONS
+###############################################################################
+
+def load_processed_data():
+    
+    # Initialize a dictionary to store the dataframes
+    dict_dfs = {}
+
+    # Load the processed data for each station
+    for station_name in cfg.station_names:
+        filename = f"df_{station_name}_lag_{cfg.lag}.csv"
+        df_station = pd.read_csv(paths.proc_data / filename, index_col=0)
+        dict_dfs[station_name] = df_station
+
+    return dict_dfs
+
+###############################################################################
+
+def preprocess_data_lstm(X):
+
+    # Add extra dimension if the input is 1D
+    if X.ndim == 1:
+        X = np.expand_dims(X, axis=0)
+
+    # Reshape the array by splitting it along the last axis
+    new_shape = X.shape[:-1] + (X.shape[-1] // cfg.lag, cfg.lag)
+    transformed_X = X.reshape(new_shape)
+
+    # Transpose the subarrays to get the desired structure
+    transposed_X = np.transpose(transformed_X, axes=(0, 2, 1))
+
+    # Remove the extra dimension if the input was 2D
+    output_X = transposed_X.squeeze()
+
+    return output_X
+
+###############################################################################
+# METEOROLOGICAL FUNCTIONS
+###############################################################################
 
 def calculate_sunrise_sunset(latitude, longitude, date, timezone):
     # Create an observer object

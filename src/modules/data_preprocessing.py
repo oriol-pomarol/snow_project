@@ -4,7 +4,7 @@ import pandas as pd
 from timezonefinder import TimezoneFinder
 from os import listdir
 from config import cfg, paths
-from .meteo_preprocess_functions import (
+from .auxiliary_functions import (
     positive_integral,
     daytime_average,
     change_meteo_units,

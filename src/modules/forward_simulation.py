@@ -4,16 +4,12 @@ import joblib
 from tensorflow import keras
 from os import listdir
 from config import cfg, paths
+from .auxiliary_functions import load_processed_data, preprocess_data_lstm
 
 def forward_simulation():
 
-    # Load the preprocessed data
-    dict_dfs = {}
-    for station_name in cfg.station_names:
-        df_station = pd.read_csv(paths.proc_data /
-                                 f"df_{station_name}_lag_{cfg.lag}.csv",
-                                 index_col=0)
-        dict_dfs[station_name] = df_station
+    # Load the processed data
+    dict_dfs = load_processed_data()
     
     # Load the models
     list_models = []
@@ -82,16 +78,6 @@ def load_model(mode):
                 break
     return model, model_type
 
-def preprocess_row_lstm(X):
-
-    # Reshape the array by splitting it along the last axis
-    transformed_X = X.reshape((X.shape[0] // cfg.lag, cfg.lag))
-
-    # Transpose the subarrays to get the desired structure
-    transposed_X = np.transpose(transformed_X)
-
-    return transposed_X
-
 class Model:
     def __init__(self, mode, model, model_type, lag):
         valid_model_type = model_type.lower() in ['nn', 'rf','lstm'] 
@@ -113,14 +99,14 @@ class Model:
         if (self.mode == 'dir_pred') or (self.mode == 'data_aug'):
             X_row = np.array(tuple_X_row[:-1])
             if self.model_type == 'lstm':
-                X_row = preprocess_row_lstm(X_row)
+                X_row = preprocess_data_lstm(X_row)
             X_row = np.expand_dims(X_row, axis=0)
 
         # Preprocess the data for the err_corr mode
         elif self.mode == 'err_corr':
             if self.model_type == 'lstm':
                 meteo_data = np.array(tuple_X_row[:-1])
-                meteo_X = preprocess_row_lstm(meteo_data)
+                meteo_X = preprocess_data_lstm(meteo_data)
                 X_row = [meteo_X, tuple_X_row[-1]]
             else:
                 X_row = np.expand_dims(np.array(tuple_X_row), axis=0)
