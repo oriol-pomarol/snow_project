@@ -4,7 +4,11 @@ import joblib
 from tensorflow import keras
 from os import listdir
 from config import cfg, paths
-from .auxiliary_functions import load_processed_data, preprocess_data_lstm
+from .auxiliary_functions import (
+    load_processed_data,
+    preprocess_data_lstm,
+    load_model
+)
 
 def forward_simulation():
 
@@ -51,32 +55,6 @@ def forward_simulation():
 ####################################################################################
 # EXTRA FUNCTIONS
 ####################################################################################
-
-def load_model(mode):
-    # Find the model filename
-    files_in_folder = listdir(paths.models)
-    model_filename = None
-    for file in files_in_folder:
-        if mode in file:
-            model_filename = file
-            break
-    if model_filename == None:
-        print(f'Error: No model available for {mode}.')
-        return None, None
-
-    # Load the model
-    if '.joblib' in model_filename:
-        model_type = 'rf'
-        model = joblib.load(paths.models / model_filename)
-    if '.h5' in model_filename:
-        model_type = 'nn'
-        model = keras.models.load_model(paths.models / model_filename)
-        # Check if the model contains an LSTM layer
-        for layer in model.layers:
-            if isinstance(layer, keras.layers.LSTM):
-                model_type = 'lstm'
-                break
-    return model, model_type
 
 class Model:
     def __init__(self, mode, model, model_type, lag):

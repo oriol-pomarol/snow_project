@@ -184,7 +184,7 @@ def met_preprocessing(df_met, lat_station, lng_station):
                 timezone=timezone,
             )
         # Add the variable to the DataFrame
-        df_agg[var_name] = var_agg
+        df_agg['met_' + var_name] = var_agg
 
     # Change the units of the aggregated variables
     df_agg = change_meteo_units(df_agg)

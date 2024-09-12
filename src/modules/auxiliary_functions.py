@@ -1,9 +1,14 @@
 import numpy as np
 import pandas as pd
+from os import listdir
+import joblib
 import ephem
 import datetime
 import pytz
+import joblib
+from tensorflow import keras
 from config import cfg, paths
+
 
 ###############################################################################
 # GENERAL FUNCTIONS
@@ -42,6 +47,7 @@ def preprocess_data_lstm(X):
 
     return output_X
 
+
 ###############################################################################
 # METEOROLOGICAL FUNCTIONS
 ###############################################################################
@@ -73,10 +79,10 @@ def calculate_sunrise_sunset(latitude, longitude, date, timezone):
     except ephem.AlwaysUpError:
         sunrise = previous_sunset = "SunAlwaysUp"
 
-    # Return the previous sunset and the sunrise as time objects in the specified timezone
+    # Return the previous sunset and the sunrise
     return previous_sunset, sunrise
 
-####################################################################################
+###############################################################################
 
 def is_daytime(sunset, sunrise):
     # Check for the exceptions
@@ -102,7 +108,7 @@ def is_daytime(sunset, sunrise):
     # Return a boolean array with the daytime hours
     return daytime
 
-####################################################################################
+###############################################################################
 
 def daytime_average(array, lat_station, lng_station, timezone):
     # Compute the sunset and sunrise given the location, date and timezone
@@ -120,7 +126,7 @@ def daytime_average(array, lat_station, lng_station, timezone):
 
     return daytime_avg
 
-####################################################################################
+###############################################################################
 
 def positive_integral(array):
     # Find the time difference between elements in hours
@@ -134,7 +140,7 @@ def positive_integral(array):
 
     return positive_int
 
-####################################################################################
+###############################################################################
 
 def change_meteo_units(df_agg):
 
@@ -170,7 +176,7 @@ def change_meteo_units(df_agg):
 
     return df_agg
 
-####################################################################################
+###############################################################################
 
 def add_lagged_values(df):
     new_df = df.copy()
@@ -181,3 +187,63 @@ def add_lagged_values(df):
                                           for j in range(1, cfg.lag+1)}),
                             new_df.iloc[:, i*(cfg.lag+1)+1:]], axis=1)    
     return new_df
+
+
+###############################################################################
+# EXTRA FUNCTIONS
+###############################################################################
+
+def load_models(mode):
+    
+    # Find the model filename
+    files_in_folder = listdir(paths.models)
+    model_filename = None
+    for file in files_in_folder:
+        if mode in file:
+            model_filename = file
+            break
+    if model_filename == None:
+        print(f'Error: No model available for {mode}.')
+        return None, None
+
+    # Load the model
+    if '.joblib' in model_filename:
+        model_type = 'rf'
+        model = joblib.load(paths.models / model_filename)
+    if '.h5' in model_filename:
+        model_type = 'nn'
+        model = keras.models.load_model(paths.models / model_filename)
+        # Check if the model contains an LSTM layer
+        for layer in model.layers:
+            if isinstance(layer, keras.layers.LSTM):
+                model_type = 'lstm'
+                break
+    return model, model_type
+
+###############################################################################
+
+def temporal_data_split(dfs):
+    
+    # Define a dataframe to store the split dates
+    df_split_dates = pd.DataFrame(columns=['split_date'])
+
+    # Initialize the train and test dataframe lists
+    dfs_train = []
+    dfs_test = []
+
+    for i, df in enumerate(dfs):
+
+        # Define the train/test split indices
+        split_idx = len(df) - int(len(df) * cfg.test_size)
+
+        # Save the split dates
+        df_split_dates.loc[cfg.trn_stn[i]] = [df.index[split_idx]]
+
+        # Split the data into train and test
+        dfs_train.append(df.iloc[:split_idx, :])
+        dfs_test.append(df.iloc[split_idx, :])
+
+    # Save the train_test split dates as a csv
+    df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
+
+    return dfs_train, dfs_test

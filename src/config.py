@@ -5,6 +5,7 @@ from pathlib import Path
 class cfg:
     lag: int = 14
     temporal_split: bool = True
+    test_size: float = 0.2
     station_names: tuple = (
         "cdp",
         "oas",
@@ -17,6 +18,18 @@ class cfg:
         "swa",
         "wfj",
     )
+    trn_stn: tuple = ('cdp', 'rme', 'sod')
+    aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
+    trn_stn: tuple = ('wfg')
+    
+    def __post_init__(self):
+        # Check that all stations are in station_names
+        assert all(station in self.station_names for station in self.trn_stations), \
+        "Some elements in trn_stations are not in station_names"
+        assert all(station in self.station_names for station in self.aug_stations), \
+        "Some elements in aug_stations are not in station_names"
+        assert all(station in self.station_names for station in self.tst_stations), \
+        "Some elements in tst_stations are not in station_names"
 
 @dataclass(frozen=True)
 class paths:
