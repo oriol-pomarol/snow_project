@@ -11,8 +11,7 @@ from .auxiliary_functions import (
     add_lagged_values,
 )
 
-
-def data_preprocessing():
+def data_processing():
 
     # Read the station data
     df_stations = pd.read_csv(
@@ -74,9 +73,8 @@ def data_preprocessing():
 
 
 ###############################################################################
-# EXTRA FUNCTIONS
+# DATA PROCESSING FUNCTIONS
 ###############################################################################
-
 
 def obs_preprocessing(df_obs):
     # Take the best available SWE measurements at each station and rename them

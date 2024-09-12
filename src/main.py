@@ -1,6 +1,6 @@
 # Import libraries
 import time
-from modules.data_preprocessing import data_preprocessing
+from modules.data_processing import data_processing
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
 from modules.simulation_analysis import simulation_analysis
@@ -10,7 +10,7 @@ start_time = time.time()
 
 # Load and preprocess data
 print('Loading and preprocess the data...')
-data_preprocessing()
+data_processing()
 print('Successfully loaded and preprocessed the data...')
 
 # Train the models with the different setups
