@@ -28,40 +28,40 @@ def model_selection():
         trn_dfs, _ = temporal_data_split(trn_dfs)
     
     # Obtain the best model for the direct prediction setup
-    print('Starting direct prediction training...')
-
+    print('Starting direct prediction model selection...')
+    
     # Take meteorological data as input and observed delta SWE as output
     X_obs = [df.filter(regex='^met_') for df in trn_dfs]
     y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
-
+    
     # Obtain the best model and save its hyperparameters
     model_dp = select_model(X=X_obs, y=y_obs, mode = 'dir_pred')
     model_dp.save_hps()
     print('Direct prediction trained successfully...')
-
+    
     # Obtain the best model for the error correction setup
-    print('Starting error correction training...')
-
+    print('Starting error correction model selection...')
+    
     # Take meteorological and crocus data as input and SWE residuals as output
     X_obs = [df.filter(regex='^(met_|cro_)') for df in trn_dfs]
     y_obs = [df[['res_mod_swe']] for df in trn_dfs]
-
+    
     # Obtain the best model and save its hyperparameters
     model_ec = select_model(X=X_obs, y=y_obs, mode = 'err_corr')
     model_ec.save_hps()
     print('Error correction trained successfully...')
-
+    
     # Obtain the best model for the data augmentation setup
-    print('Starting data augmentation training...')
-
+    print('Starting data augmentation model selection...')
+    
     # Take meteorological data as input and observed delta SWE as output
     X_obs = [df.filter(regex='^met_') for df in trn_dfs]
     y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
-
+    
     # Take meteorological data as input and modelled delta SWE as output
     X_aug = [df.filter(regex='^met_') for df in aug_dfs]
     y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
-
+    
     # Obtain the best model and save its hyperparameters
     model_da = select_model(X=X_obs, y=y_obs, X_aug=X_aug,
                             y_aug=y_aug, mode = 'data_aug')
