@@ -1,30 +1,26 @@
 import joblib
+import json
 from tensorflow import keras
 from keras.callbacks import EarlyStopping
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
-from config import paths
+from config import paths, cfg
 from .auxiliary_functions import preprocess_data_lstm
 
 class Model:
-    def __init__(self, mode, model_type, lag):
+    def __init__(self, mode, model_type, hyperparameters):
         valid_model_type = model_type.lower() in ['nn', 'rf','lstm'] 
         valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
         if valid_model_type and valid_mode:
             self.model_type = model_type.lower()
             self.mode = mode.lower()
-            self.lag = lag
             self.model = None
             if (self.model_type == 'nn') or (self.model_type == 'lstm'):
                 self.epochs = 100
         else:
             raise ValueError("Invalid model setup or model type.")
         
-        self.hyperparameters = {}
-
-    def set_hyperparameters(self, **kwargs):
-        self.hyperparameters = kwargs
-        self.model = None  # Clear any existing model
+        self.hyperparameters = hyperparameters
 
     def create_model(self, input_shape):
         self.model = None  # Clear any existing model
@@ -38,7 +34,7 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(self.lag, (input_shape-1*(self.mode=='err_corr')) // self.lag))
+            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*(self.mode=='err_corr')) // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
@@ -105,7 +101,11 @@ class Model:
             joblib.dump(self.model, paths.models / f'{self.mode}.joblib')
         else:
             self.model.save(paths.models / f'{self.mode}.h5')
-        
+
+    def save_hps(self):
+        with open(paths.temp_data / f'{self.mode}_hps.json', 'w') as f:
+            json.dump(self.hyperparameters, f)
+
     def test(self, X, y):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
@@ -125,7 +125,11 @@ class Model:
     def __str__(self):
         model_name = self.model_type
         for key, value in self.hyperparameters.items():
-            param_name = key[:2]  # Take the first two characters of the hyperparameter name
+
+            # Take the first two characters of the hyperparameter name
+            param_name = key[:2]
+
+            # Manually added exceptions for clarity
             if key == 'layers':
                 value_str = "_".join([f"{unit:03d}" for unit in value])
                 param_name = 'ly'
