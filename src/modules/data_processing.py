@@ -66,6 +66,9 @@ def data_processing():
         df_data["delta_obs_swe"] = df_data["obs_swe"].diff().shift(-1)
         df_data["delta_mod_swe"] = df_data["mod_swe"].diff().shift(-1)
 
+        # Drop a percentage of the data
+        df_data = df_data.iloc[: int(len(df_data) * (1-cfg.drop_data))]
+
         # Save the DataFrame
         df_data.to_csv(paths.proc_data / f"df_{station_name}_lag_{cfg.lag}.csv")
 
@@ -184,10 +187,13 @@ def met_preprocessing(df_met, lat_station, lng_station):
                 timezone=timezone,
             )
         # Add the variable to the DataFrame
-        df_agg['met_' + var_name] = var_agg
+        df_agg[var_name] = var_agg
 
     # Change the units of the aggregated variables
     df_agg = change_meteo_units(df_agg)
+
+    # Add met_ as prefix to the variable names
+    df_agg.columns = [f"met_{col}" for col in df_agg.columns]
 
     # Add lagged values to the DataFrame
     df_agg_lagged = add_lagged_values(df_agg)

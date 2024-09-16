@@ -101,53 +101,35 @@ class Model:
         else:
             self.model = keras.models.load_model(path_dir / f'{self.mode}.h5')
 
-    def fit(self, X, y, X_val=None, y_val=None, **kwargs):
+    def fit(self, X, y, X_val, y_val, X_aug=None, y_aug=None, **kwargs):
+
+        # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            if self.mode == 'err_corr':
-                X = X.filter(regex='^met_')
-                X_mod = X.filter(regex='^cro_')
-                X_val = X_val.filter(regex='^met_')
-                X_val_mod = X_val.filter(regex='^cro_')
             X = preprocess_data_lstm(X)
-            X_val = preprocess_data_lstm(X_val)      
+            X_val = preprocess_data_lstm(X_val)
+        
+        # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
-            # Define early stopping callback
-            callbacks = []
-            if (X_val is not None) and (y_val is not None):
-                callbacks = [EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)]
-            if self.model_type == 'lstm' and self.mode == 'err_corr':
-                history = self.model.fit([X,X_mod], y, epochs=self.epochs, validation_data=([X_val,X_val_mod], y_val),
-                                         callbacks=callbacks, **kwargs)
-            else:
-                history = self.model.fit(X, y, epochs=self.epochs, validation_data=(X_val, y_val), callbacks=callbacks, **kwargs)
+            callbacks = [EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)]
+            history = self.model.fit(X, y, epochs=self.epochs, validation_data=(X_val, y_val), callbacks=callbacks, **kwargs)
             self.epochs = len(history.history['loss'])
             return history
+        
+        # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
             self.model.fit(X, y.ravel(), **kwargs)
             return None
 
     def predict(self, X):
         if self.model_type == 'lstm':
-            if self.mode == 'err_corr':
-                X = X.filter(regex='^met_')
-                X_mod = X.filter(regex='^cro_')
-            X = preprocess_data_lstm(X)
-        if self.model_type == 'lstm' and self.mode == 'err_corr':
-            y_pred = self.model.predict([X,X_mod])
-        else:
-            y_pred = self.model.predict(X)
+            X = preprocess_data_lstm(X, mode=self.mode)
+        y_pred = self.model.predict(X)
         return y_pred
 
     def test(self, X, y):
         if self.model_type == 'lstm':
-            if self.mode == 'err_corr':
-                X = X.filter(regex='^met_')
-                X_mod = X.filter(regex='^cro_')
-            X = preprocess_data_lstm(X)
-        if self.model_type == 'lstm' and self.mode == 'err_corr':
-            y_pred = self.model.predict([X,X_mod])
-        else:
-            y_pred = self.model.predict(X)
+            X = preprocess_data_lstm(X, mode=self.mode)
+        y_pred = self.model.predict(X)
         mse = mean_squared_error(y, y_pred)
         return mse
 

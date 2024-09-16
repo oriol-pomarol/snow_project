@@ -1,15 +1,8 @@
 import numpy as np
 import pandas as pd
-import joblib
-from tensorflow import keras
-from os import listdir
 from config import cfg, paths
-from model_class import Model
-from .auxiliary_functions import (
-    load_processed_data,
-    preprocess_data_lstm,
-    load_model
-)
+from .model_class import Model
+from .auxiliary_functions import load_processed_data
 
 def forward_simulation():
 

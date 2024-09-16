@@ -1,15 +1,10 @@
 import numpy as np
 import pandas as pd
-from os import listdir
 from sklearn.model_selection import train_test_split
-import joblib
 import ephem
 import datetime
 import pytz
-import joblib
-from tensorflow import keras
 from config import cfg, paths
-
 
 ###############################################################################
 # GENERAL FUNCTIONS
@@ -30,23 +25,35 @@ def load_processed_data():
 
 ###############################################################################
 
-def preprocess_data_lstm(X):
+def preprocess_data_lstm(X, mode):
+
+    # If in error correction, split the meteorological and crocus data
+    if mode == 'err_corr':
+        X_met = X.filter(regex='^met_').values
+        X_cro = X.filter(regex='^cro_').values
+
+    else:
+        X_met = X.values
 
     # Add extra dimension if the input is 1D
-    if X.ndim == 1:
-        X = np.expand_dims(X, axis=0)
+    if X_met.ndim == 1:
+        X_met = np.expand_dims(X_met, axis=0)
 
     # Reshape the array by splitting it along the last axis
-    new_shape = X.shape[:-1] + (X.shape[-1] // cfg.lag, cfg.lag)
-    transformed_X = X.reshape(new_shape)
+    new_shape = X_met.shape[:-1] + (X_met.shape[-1] // cfg.lag, cfg.lag)
+    transformed_X_met = X_met.reshape(new_shape)
 
     # Transpose the subarrays to get the desired structure
-    transposed_X = np.transpose(transformed_X, axes=(0, 2, 1))
+    transposed_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
 
     # Remove the extra dimension if the input was 2D
-    output_X = transposed_X.squeeze()
+    output_X_met = transposed_X_met.squeeze()
 
-    return output_X
+    if mode == 'err_corr':
+        output_X_cro = np.expand_dims(X_cro, axis=0)
+        return output_X_met, output_X_cro
+    
+    return output_X_met
 
 
 ###############################################################################

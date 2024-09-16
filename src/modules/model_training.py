@@ -5,8 +5,8 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
-from model_class import Model
 from config import cfg, paths
+from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
     temporal_data_split,

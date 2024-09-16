@@ -4,8 +4,8 @@ import tensorflow as tf
 import itertools
 from sklearn.model_selection import train_test_split
 from config import cfg, paths
-from model_class import Model
-from auxiliary_functions import (
+from .model_class import Model
+from .auxiliary_functions import (
     load_processed_data,
     temporal_data_split,
     data_aug_split,
@@ -83,7 +83,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
     losses = np.zeros((len(models), n_splits))
 
     # Iterate over each split
-    for s in len(n_splits):
+    for s in range(n_splits):
 
         # Obtain the training, validation and test data
         if cfg.temporal_split:
@@ -103,12 +103,13 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         # Iterate through every model
         for m, model in enumerate(models):
 
-            print(f'Split {s*1}/{n_splits}, Model {m+1}/{len(models)}.')
+            print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
 
             # Create the model and fit it to the data
             model.create_model(X_trn.shape[1])
             model.fit(X_trn, y_trn, X_val, y_val,
-                      X_val_aug, y_val_aug, sample_weight)
+                      X_val_aug, y_val_aug,
+                      sample_weight=sample_weight)
             
             # Test the model on the validation data and store the loss
             loss = model.test(X=X_tst, y=y_tst)

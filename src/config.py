@@ -21,7 +21,8 @@ class cfg:
     )
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
-    trn_stn: tuple = ('wfg')
+    tst_stn: tuple = ('wfg',)
+    drop_data: float = 0.6
 
     def modes():
         return {
@@ -46,7 +47,7 @@ class paths:
     root: Path = Path(__file__).resolve().parents[1]
     
     # DATA PATHS
-    proc_data: Path = root / "data" / "preprocessed"
+    proc_data: Path = root / "data" / "processed"
     raw_data: Path = root / "data" / "raw"
     temp_data: Path = root / "data" / "temp"
 
