@@ -5,7 +5,11 @@ import itertools
 from sklearn.model_selection import train_test_split
 from config import cfg, paths
 from model_class import Model
-from auxiliary_functions import load_processed_data, temporal_data_split
+from auxiliary_functions import (
+    load_processed_data,
+    temporal_data_split,
+    data_aug_split,
+)
 
 def model_selection():
 
@@ -26,47 +30,28 @@ def model_selection():
     # Define the training data in case of a temporal split
     if cfg.temporal_split:
         trn_dfs, _ = temporal_data_split(trn_dfs)
+
+    for mode, mode_vars in cfg.modes().items():
     
-    # Obtain the best model for the direct prediction setup
-    print('Starting direct prediction model selection...')
-    
-    # Take meteorological data as input and observed delta SWE as output
-    X_obs = [df.filter(regex='^met_') for df in trn_dfs]
-    y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
-    
-    # Obtain the best model and save its hyperparameters
-    model_dp = select_model(X=X_obs, y=y_obs, mode = 'dir_pred')
-    model_dp.save_hps()
-    print('Direct prediction trained successfully...')
-    
-    # Obtain the best model for the error correction setup
-    print('Starting error correction model selection...')
-    
-    # Take meteorological and crocus data as input and SWE residuals as output
-    X_obs = [df.filter(regex='^(met_|cro_)') for df in trn_dfs]
-    y_obs = [df[['res_mod_swe']] for df in trn_dfs]
-    
-    # Obtain the best model and save its hyperparameters
-    model_ec = select_model(X=X_obs, y=y_obs, mode = 'err_corr')
-    model_ec.save_hps()
-    print('Error correction trained successfully...')
-    
-    # Obtain the best model for the data augmentation setup
-    print('Starting data augmentation model selection...')
-    
-    # Take meteorological data as input and observed delta SWE as output
-    X_obs = [df.filter(regex='^met_') for df in trn_dfs]
-    y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
-    
-    # Take meteorological data as input and modelled delta SWE as output
-    X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-    y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
-    
-    # Obtain the best model and save its hyperparameters
-    model_da = select_model(X=X_obs, y=y_obs, X_aug=X_aug,
-                            y_aug=y_aug, mode = 'data_aug')
-    model_da.save_hps()
-    print('Data augmentation trained successfully...')
+        # Obtain the best model for the direct prediction setup
+        print(f'Starting {mode} model selection...')
+        
+        # Take the corresponding predictor and target variables
+        X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
+        y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+        
+        # Take the augmented data if in the corresponding mode
+        if mode == 'data_aug':
+            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+        else:
+            X_aug, y_aug = None, None
+
+        # Obtain the best model and save its hyperparameters
+        model = select_model(X=X_obs, y=y_obs, X_aug=X_aug,
+                            y_aug=y_aug, mode = 'dir_pred')
+        model.save_hps()
+        print(f'{mode} model selected successfully...')
 
     return
 
@@ -164,7 +149,8 @@ def initialize_models(mode, model_type, hp_vals_dict):
         hp_combination = dict(zip(hp_names, hp_val_combination))
 
         # Create a model with the HP combination
-        model = Model(model_type, mode, hp_combination)
+        model = Model(mode)
+        model.set_hps(model_type, hp_combination)
 
         # Append the model to the list
         models.append(model)
@@ -208,23 +194,3 @@ def temporal_split(X, y, i):
     y_trn = pd.concat([y[j].head(int(0.7*len(y[j]))) for j in range(len(y))])
 
     return X_trn, X_val, X_tst, y_trn, y_val, y_tst
-
-###############################################################################
-
-def data_aug_split(X_trn, y_trn, X_aug, y_aug):
-
-    # Take a random subset for validation
-    X_trn_aug, X_val_aug, y_trn_aug, y_val_aug = \
-        train_test_split(pd.concat(X_aug), pd.concat(y_aug),
-                         test_size=0.1, random_state=10)
-    
-    # Calculate the training weights of the modelled data
-    weight_aug = cfg.rel_weight * len(X_trn) / len(X_trn_aug)
-    sample_weight = np.concatenate((np.ones(len(X_trn)), 
-                                    np.full(len(X_trn_aug), weight_aug)))
-    
-    # Concatenate the observed and augmented datasets
-    X_trn = pd.concat([X_trn, X_trn_aug])
-    y_trn = pd.concat([y_trn, y_trn_aug])
-
-    return X_trn, y_trn, X_val_aug, y_val_aug, sample_weight

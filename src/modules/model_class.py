@@ -8,22 +8,48 @@ from config import paths, cfg
 from .auxiliary_functions import preprocess_data_lstm
 
 class Model:
-    def __init__(self, mode, model_type, hyperparameters):
-        valid_model_type = model_type.lower() in ['nn', 'rf','lstm'] 
+    def __init__(self, mode):
         valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
-        if valid_model_type and valid_mode:
-            self.model_type = model_type.lower()
+        if valid_mode:
             self.mode = mode.lower()
-            self.model = None
-            if (self.model_type == 'nn') or (self.model_type == 'lstm'):
-                self.epochs = 100
         else:
-            raise ValueError("Invalid model setup or model type.")
-        
+            raise ValueError("Invalid model setup.")
+        self.model = None
+        self.model_type = None
+        self.hyperparameters = None
+
+    def set_hps(self, model_type, hyperparameters):
+        valid_model_type = model_type.lower() in ['nn', 'rf','lstm']
+        if valid_model_type:
+            self.model_type = model_type.lower()
+        else:
+            raise ValueError("Invalid model type.")
         self.hyperparameters = hyperparameters
+    
+    def save_hps(self, path_dir=None):
+        if path_dir is None:
+            path_dir = paths.temp_data
+        hps_mt = {
+            'hyperparameters': self.hyperparameters,
+            'model_type': self.model_type
+        }
+        with open(path_dir / f'{self.mode}_hps.json', 'w') as f:
+            json.dump(hps_mt, f)
+
+    def load_hps(self, path_dir=None):
+        if path_dir is None:
+            path_dir = paths.temp_data
+        with open(path_dir / f'{self.mode}_hps.json', 'r') as f:
+            hps_mt = json.load(f)
+            self.hyperparameters = hps_mt.get('hyperparameters', {})
+            self.model_type = hps_mt.get('model_type')
 
     def create_model(self, input_shape):
         self.model = None  # Clear any existing model
+
+        if (self.model_type == 'nn') or (self.model_type == 'lstm'):
+            self.epochs = 100
+
         if self.model_type == 'nn':
             self.model = keras.Sequential()
             self.model.add(keras.layers.Input(shape=input_shape))
@@ -58,6 +84,22 @@ class Model:
             self.model = RandomForestRegressor(n_estimators=200, random_state=10,
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
+            
+    def save_model(self, path_dir=None):
+        if path_dir is None:
+            path_dir = paths.models
+        if self.model_type == 'rf':
+            joblib.dump(self.model, path_dir/ f'{self.mode}.joblib')
+        else:
+            self.model.save(path_dir / f'{self.mode}.h5')
+
+    def load_model(self, path_dir=None):
+        if path_dir is None:
+            path_dir = paths.models
+        if self.model_type == 'rf':
+            self.model = joblib.load(path_dir / f'{self.mode}.joblib')
+        else:
+            self.model = keras.models.load_model(path_dir / f'{self.mode}.h5')
 
     def fit(self, X, y, X_val=None, y_val=None, **kwargs):
         if self.model_type == 'lstm':
@@ -95,16 +137,6 @@ class Model:
         else:
             y_pred = self.model.predict(X)
         return y_pred
-    
-    def save(self):
-        if self.model_type == 'rf':
-            joblib.dump(self.model, paths.models / f'{self.mode}.joblib')
-        else:
-            self.model.save(paths.models / f'{self.mode}.h5')
-
-    def save_hps(self):
-        with open(paths.temp_data / f'{self.mode}_hps.json', 'w') as f:
-            json.dump(self.hyperparameters, f)
 
     def test(self, X, y):
         if self.model_type == 'lstm':

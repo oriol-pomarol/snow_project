@@ -22,6 +22,13 @@ class cfg:
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
     trn_stn: tuple = ('wfg')
+
+    def modes():
+        return {
+    "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
+    "err_corr": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
+    "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
+    }
     
     def __post_init__(self):
         # Check that all stations are in station_names

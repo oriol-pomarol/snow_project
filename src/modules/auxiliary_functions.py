@@ -247,3 +247,23 @@ def temporal_data_split(dfs):
     df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
 
     return dfs_train, dfs_test
+
+###############################################################################
+
+def data_aug_split(X_trn, y_trn, X_aug, y_aug):
+
+    # Take a random subset for validation
+    X_trn_aug, X_val_aug, y_trn_aug, y_val_aug = \
+        train_test_split(pd.concat(X_aug), pd.concat(y_aug),
+                         test_size=0.1, random_state=10)
+    
+    # Calculate the training weights of the modelled data
+    weight_aug = cfg.rel_weight * len(X_trn) / len(X_trn_aug)
+    sample_weight = np.concatenate((np.ones(len(X_trn)), 
+                                    np.full(len(X_trn_aug), weight_aug)))
+    
+    # Concatenate the observed and augmented datasets
+    X_trn = pd.concat([X_trn, X_trn_aug])
+    y_trn = pd.concat([y_trn, y_trn_aug])
+
+    return X_trn, y_trn, X_val_aug, y_val_aug, sample_weight
