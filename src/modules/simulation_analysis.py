@@ -12,7 +12,7 @@ def simulation_analysis(station_years=[]):
         df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=0)
         dict_split_dates = {index: row.tolist() for index, row in df_split_dates.iterrows()}
 
-    # Load the station data
+    # Load the true and simulated snow data for each station
     dict_dfs = {}
     for station_name in cfg.station_names:
         # Load the obs and mod data

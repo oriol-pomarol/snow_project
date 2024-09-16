@@ -104,10 +104,10 @@ class Model:
     def fit(self, X, y, X_val=None, y_val=None, **kwargs):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
-                X_mod = X[:,-1]
-                X = X[:,:-1]
-                X_val_mod = X_val[:,-1]
-                X_val = X_val[:,:-1]
+                X = X.filter(regex='^met_')
+                X_mod = X.filter(regex='^cro_')
+                X_val = X_val.filter(regex='^met_')
+                X_val_mod = X_val.filter(regex='^cro_')
             X = preprocess_data_lstm(X)
             X_val = preprocess_data_lstm(X_val)      
         if self.model_type in ['nn', 'lstm']:
@@ -129,8 +129,8 @@ class Model:
     def predict(self, X):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
-                X_mod = X[:,-1]
-                X = X[:,:-1]
+                X = X.filter(regex='^met_')
+                X_mod = X.filter(regex='^cro_')
             X = preprocess_data_lstm(X)
         if self.model_type == 'lstm' and self.mode == 'err_corr':
             y_pred = self.model.predict([X,X_mod])
@@ -141,8 +141,8 @@ class Model:
     def test(self, X, y):
         if self.model_type == 'lstm':
             if self.mode == 'err_corr':
-                X_mod = X[:,-1]
-                X = X[:,:-1]
+                X = X.filter(regex='^met_')
+                X_mod = X.filter(regex='^cro_')
             X = preprocess_data_lstm(X)
         if self.model_type == 'lstm' and self.mode == 'err_corr':
             y_pred = self.model.predict([X,X_mod])

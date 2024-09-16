@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from os import listdir
+from sklearn.model_selection import train_test_split
 import joblib
 import ephem
 import datetime
@@ -191,35 +192,6 @@ def add_lagged_values(df):
 
 ###############################################################################
 # EXTRA FUNCTIONS
-###############################################################################
-
-def load_models(mode):
-    
-    # Find the model filename
-    files_in_folder = listdir(paths.models)
-    model_filename = None
-    for file in files_in_folder:
-        if mode in file:
-            model_filename = file
-            break
-    if model_filename == None:
-        print(f'Error: No model available for {mode}.')
-        return None, None
-
-    # Load the model
-    if '.joblib' in model_filename:
-        model_type = 'rf'
-        model = joblib.load(paths.models / model_filename)
-    if '.h5' in model_filename:
-        model_type = 'nn'
-        model = keras.models.load_model(paths.models / model_filename)
-        # Check if the model contains an LSTM layer
-        for layer in model.layers:
-            if isinstance(layer, keras.layers.LSTM):
-                model_type = 'lstm'
-                break
-    return model, model_type
-
 ###############################################################################
 
 def temporal_data_split(dfs):

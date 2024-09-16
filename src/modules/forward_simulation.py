@@ -4,6 +4,7 @@ import joblib
 from tensorflow import keras
 from os import listdir
 from config import cfg, paths
+from model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
     preprocess_data_lstm,
@@ -17,9 +18,11 @@ def forward_simulation():
     
     # Load the models
     list_models = []
-    for mode in ['dir_pred', 'err_corr', 'data_aug']:
-        model, model_type = load_model(mode)
-        list_models.append(Model(mode, model, model_type, cfg.lag))
+    for mode in cfg.modes().keys():
+        model = Model(mode)
+        model.load_hps()
+        model.load_model()
+        list_models.append(model)
 
     # Simulate SWE for each station
     for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
@@ -33,62 +36,21 @@ def forward_simulation():
         for model_idx, model in enumerate(list_models):
             print(f"Mode {model_idx + 1} of {len(list_models)}.")
 
-            for row_idx, row in enumerate(df_station_X.itertuples(index=False,
-                                                                  name=None)):
+            for row_idx, row_serie in df_station_X.iterrows():
+                row = row_serie.to_frame().T
                 # Print progress
                 if row_idx % (len(df_station_X) // 5) == 0:
                     progress_pct = row_idx * 100 / len(df_station_X)
                     print(f"Progress: {progress_pct:.0f}% completed.")
                 
                 # Predict the next SWE value
-                pred_y = model.predict(row)
+                pred_y = model.predict(row).ravel()
                 pred_swe = max(pred_swe_arr[model_idx,row_idx-1] + pred_y, 0)
                 pred_swe_arr[model_idx, row_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr.T, index=df_station_X.index, 
-                              columns=['dir_pred', 'err_corr', 'data_aug'])
+                              columns=cfg.modes().keys())
         df_swe.to_csv(paths.temp_data / f'df_{station_name}_sim_swe.csv')
 
     return
-
-####################################################################################
-# EXTRA FUNCTIONS
-####################################################################################
-
-class Model:
-    def __init__(self, mode, model, model_type, lag):
-        valid_model_type = model_type.lower() in ['nn', 'rf','lstm'] 
-        valid_mode_type = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
-        if valid_model_type and valid_mode_type:
-            self.mode = mode.lower()
-            self.model = model
-            self.model_type = model_type.lower()
-            self.lag = lag
-        else:
-            raise ValueError("Invalid model type.")
-        
-    def get_mode(self):
-        return self.mode
-        
-    def predict(self, tuple_X_row):
-
-        # Preprocess the data for the dir_pred and data_aug modes
-        if (self.mode == 'dir_pred') or (self.mode == 'data_aug'):
-            X_row = np.array(tuple_X_row[:-1])
-            if self.model_type == 'lstm':
-                X_row = preprocess_data_lstm(X_row)
-            X_row = np.expand_dims(X_row, axis=0)
-
-        # Preprocess the data for the err_corr mode
-        elif self.mode == 'err_corr':
-            if self.model_type == 'lstm':
-                meteo_data = np.array(tuple_X_row[:-1])
-                meteo_X = preprocess_data_lstm(meteo_data)
-                X_row = [meteo_X, tuple_X_row[-1]]
-            else:
-                X_row = np.expand_dims(np.array(tuple_X_row), axis=0)
-
-        # Return the predicted delta SWE for this row
-        y_pred = self.model.predict(X_row).ravel()
-        return y_pred
