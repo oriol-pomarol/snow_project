@@ -31,7 +31,6 @@ def preprocess_data_lstm(X, mode):
     if mode == 'err_corr':
         X_met = X.filter(regex='^met_').values
         X_cro = X.filter(regex='^cro_').values
-
     else:
         X_met = X.values
 
@@ -50,7 +49,7 @@ def preprocess_data_lstm(X, mode):
     output_X_met = transposed_X_met.squeeze()
 
     # If in error correction, return the crocus data as well (if available)
-    if mode == 'err_corr' and X_cro.ndim > 1:
+    if mode == 'err_corr' and X_cro.shape[1] > 0:
         output_X_cro = np.expand_dims(X_cro, axis=0)
         return output_X_met, output_X_cro
     
