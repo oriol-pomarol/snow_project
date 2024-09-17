@@ -49,7 +49,8 @@ def preprocess_data_lstm(X, mode):
     # Remove the extra dimension if the input was 2D
     output_X_met = transposed_X_met.squeeze()
 
-    if mode == 'err_corr':
+    # If in error correction, return the crocus data as well (if available)
+    if mode == 'err_corr' and X_cro.ndim > 1:
         output_X_cro = np.expand_dims(X_cro, axis=0)
         return output_X_met, output_X_cro
     

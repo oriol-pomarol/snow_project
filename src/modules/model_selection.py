@@ -16,9 +16,9 @@ def model_selection():
     # Load the processed data from all stations
     all_dfs = load_processed_data()
     
-    # Store the training and augmentation dataframes
-    trn_dfs = [all_dfs[station] for station in cfg.trn_stn]
-    aug_dfs = [all_dfs[station] for station in cfg.aug_stn]
+    # Store the training and augmentation dataframes and drop NAs
+    trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
+    aug_dfs = [all_dfs[station].dropna() for station in cfg.aug_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
@@ -48,8 +48,8 @@ def model_selection():
             X_aug, y_aug = None, None
 
         # Obtain the best model and save its hyperparameters
-        model = select_model(X=X_obs, y=y_obs, X_aug=X_aug,
-                            y_aug=y_aug, mode = 'dir_pred')
+        model = select_model(X = X_obs, y = y_obs, X_aug = X_aug,
+                            y_aug = y_aug, mode = mode)
         model.save_hps()
         print(f'{mode} model selected successfully...')
 
@@ -106,7 +106,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
             print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
 
             # Create the model and fit it to the data
-            model.create_model(X_trn.shape[1])
+            model.create_model(X_trn.shape[1], 0) # Change 0 to the number of crocus variables
             model.fit(X_trn, y_trn, X_val, y_val,
                       X_val_aug, y_val_aug,
                       sample_weight=sample_weight)

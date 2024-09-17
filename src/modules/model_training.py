@@ -18,9 +18,9 @@ def model_training():
     # Load the processed data from all stations
     all_dfs = load_processed_data()
     
-    # Store the training and augmentation dataframes
-    trn_dfs = [all_dfs[station] for station in cfg.trn_stn]
-    aug_dfs = [all_dfs[station] for station in cfg.aug_stn]
+    # Store the training and augmentation dataframes and drop NAs
+    trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
+    aug_dfs = [all_dfs[station].dropna() for station in cfg.aug_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
@@ -45,6 +45,13 @@ def model_training():
         X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
         y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
 
+        # Take the augmented data if in the corresponding mode
+        if mode == 'data_aug':
+            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+        else:
+            X_aug, y_aug = None, None
+            
         # Train the best model and save it
         model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
         model.save_model()
@@ -103,7 +110,7 @@ def train_model(X, y, X_aug, y_aug, mode):
     # Create a model with the best hyperparameters
     best_model = Model(mode)
     best_model.load_hps()
-    best_model.create_model(X[0].shape[1])
+    best_model.create_model(X[0].shape[1], 0) # Change 0 to the number of crocus variables
 
     # Train the model
     history = best_model.fit(X_trn, y_trn, X_val, y_val,

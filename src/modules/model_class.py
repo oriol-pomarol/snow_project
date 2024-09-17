@@ -44,7 +44,7 @@ class Model:
             self.hyperparameters = hps_mt.get('hyperparameters', {})
             self.model_type = hps_mt.get('model_type')
 
-    def create_model(self, input_shape):
+    def create_model(self, input_shape, crocus_shape=0):
         self.model = None  # Clear any existing model
 
         if (self.model_type == 'nn') or (self.model_type == 'lstm'):
@@ -60,7 +60,7 @@ class Model:
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*(self.mode=='err_corr')) // cfg.lag))
+            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*crocus_shape*(self.mode=='err_corr')) // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
@@ -69,12 +69,12 @@ class Model:
                     x = keras.layers.LSTM(units, return_sequences=True)(x)
                 else:
                     x = keras.layers.LSTM(units)(x)
-            if self.mode == 'err_corr':
-                extra_var_input = keras.layers.Input(shape=(1,), name='extra_var_input')
+            if self.mode == 'err_corr' and crocus_shape > 0:
+                extra_var_input = keras.layers.Input(shape=(crocus_shape,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
             output_layer = keras.layers.Dense(1, activation='linear')(x)
-            if self.mode == 'err_corr':
+            if self.mode == 'err_corr' and crocus_shape > 0:
                 self.model = keras.models.Model(inputs=[sequential_input, extra_var_input], outputs=output_layer)
             else:
                 self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
@@ -105,8 +105,8 @@ class Model:
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X)
-            X_val = preprocess_data_lstm(X_val)
+            X = preprocess_data_lstm(X, mode=self.mode)
+            X_val = preprocess_data_lstm(X_val, mode=self.mode)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
@@ -117,7 +117,7 @@ class Model:
         
         # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
-            self.model.fit(X, y.ravel(), **kwargs)
+            self.model.fit(X, y, **kwargs)
             return None
 
     def predict(self, X):
