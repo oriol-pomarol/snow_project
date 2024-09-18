@@ -220,7 +220,7 @@ def temporal_data_split(dfs):
 
         # Split the data into train and test
         dfs_train.append(df.iloc[:split_idx, :])
-        dfs_test.append(df.iloc[split_idx, :])
+        dfs_test.append(df.iloc[split_idx:, :])
 
     # Save the train_test split dates as a csv
     df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
@@ -230,6 +230,10 @@ def temporal_data_split(dfs):
 ###############################################################################
 
 def data_aug_split(X_trn, y_trn, X_aug, y_aug):
+
+    # Change the name of the augmented target
+    name_target = cfg.modes()['data_aug']['target']
+    y_aug = [y.rename(columns={'delta_mod_swe' : name_target}) for y in y_aug]
 
     # Take a random subset for validation
     X_trn_aug, X_val_aug, y_trn_aug, y_val_aug = \

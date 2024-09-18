@@ -17,8 +17,10 @@ def model_selection():
     all_dfs = load_processed_data()
     
     # Store the training and augmentation dataframes and drop NAs
-    trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
-    aug_dfs = [all_dfs[station].dropna() for station in cfg.aug_stn]
+    trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
+    ignore_cols = ["delta_obs_swe", "obs_swe"]
+    dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
+    aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]

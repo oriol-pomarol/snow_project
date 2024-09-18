@@ -66,15 +66,18 @@ def model_training():
 
         # If in data augmentation, predict delta SWE for the augmented data
         if mode == 'data_aug':
-            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
             y_aug_pred = model.predict(pd.concat(X_aug))
+            y_aug = pd.concat(y_aug)
         else:
-            X_aug, y_aug, y_aug_pred = None, None, None
+            y_aug_pred = None
+
+        # Concatenate the observed values and convert to 1D numpy array
+        y_train = pd.concat(y_obs).values.ravel()
+        y_tst = pd.concat(y_tst).values.ravel()
 
         # Make a plot vs true plot
-        plot_pred_vs_true(mode, model, pd.concat(y_obs), y_train_pred,
-                          y_tst, y_tst_pred, pd.concat(y_aug), y_aug_pred)
+        plot_pred_vs_true(mode, y_train, y_train_pred,
+                          y_tst, y_tst_pred, y_aug, y_aug_pred)
         
         print(f'{mode} trained successfully...')
 
@@ -113,8 +116,8 @@ def train_model(X, y, X_aug, y_aug, mode):
     best_model.create_model(X[0].shape[1], 0) # Change 0 to the number of crocus variables
 
     # Train the model
-    history = best_model.fit(X_trn, y_trn, X_val, y_val,
-                             X_val_aug, y_val_aug, sample_weight)
+    history = best_model.fit(X = X_trn, y = y_trn, X_val = X_val, y_val = y_val,
+                             X_aug = X_val_aug, y_aug = y_val_aug, sample_weight = sample_weight)
 
     # If the model is a neural network, save the training history
     if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
