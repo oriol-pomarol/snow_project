@@ -61,13 +61,13 @@ def model_training():
         y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
 
         # Predict the delta SWE for the training and test data
-        y_train_pred = model.predict(pd.concat(X_obs))
-        y_tst_pred = model.predict(pd.concat(X_tst))
+        y_train_pred = model.predict(pd.concat(X_obs)).ravel()
+        y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
         # If in data augmentation, predict delta SWE for the augmented data
         if mode == 'data_aug':
-            y_aug_pred = model.predict(pd.concat(X_aug))
-            y_aug = pd.concat(y_aug)
+            y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+            y_aug = pd.concat(y_aug).values.ravel()
         else:
             y_aug_pred = None
 

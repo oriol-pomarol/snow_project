@@ -10,21 +10,20 @@ def simulation_analysis(station_years=[]):
     if cfg.temporal_split:
         # Load the train/test into a dictionary
         df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=0)
-        dict_split_dates = {index: row.tolist() for index, row in df_split_dates.iterrows()}
+        dict_split_dates = {index: row[0] for index, row in df_split_dates.iterrows()}
 
     # Load the true and simulated snow data for each station
     dict_dfs = {}
     for station_name in cfg.station_names:
         # Load the obs and mod data
-        dir_path = paths.proc_data / f"data_daily_lag_{cfg.lag}"
         filename = f"df_{station_name}_lag_{cfg.lag}.csv"
-        df_obs = pd.read_csv(dir_path / filename, index_col=0)
+        df_obs = pd.read_csv(paths.proc_data / filename, index_col=0)
 
         # Subset only the SWE columns
         df_obs = df_obs[["obs_swe", "mod_swe"]]
 
         # Load the ML simulated data
-        filename = f"df_{station_name}_sim_swe.csv"
+        filename = f"df_{station_name}_pred_swe.csv"
         df_sim = pd.read_csv(paths.temp_data / filename, index_col=0)
 
         # Join both dataframes by index
@@ -97,7 +96,7 @@ def simulation_analysis(station_years=[]):
 
             # Mask the measurements and find the number of data points
             if cfg.temporal_split:
-                split_date = dict_split_dates.get(station_name, None)
+                split_date = dict_split_dates[station_name]
             else:
                 split_date = None
             df_masked = mask_measurements_by_year(df_station, year, split_date)
@@ -128,20 +127,18 @@ def simulation_analysis(station_years=[]):
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def mask_measurements_by_year(df, year, split_dates=None):
+def mask_measurements_by_year(df, year, split_date=None):
 
     if year == 'all':
         return df
     
     elif year == 'train':
-        start_date, end_date = split_dates
-        mask = (df.index < start_date) | (df.index > end_date)
+        mask = (df.index < split_date)
 
     elif year == 'test':
-        start_date, end_date = split_dates
-        mask = (df.index >= start_date) & (df.index <= end_date)
+        mask = (df.index >= split_date)
 
-    elif year.isdigit(): 
+    elif year.isdigit():
         year = int(year)
         start_date = pd.to_datetime(f'{year}-07-01')
         end_date = pd.to_datetime(f'{year + 1}-07-01')
