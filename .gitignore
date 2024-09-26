@@ -8,6 +8,8 @@ data/**
 
 src/modules/__pycache__
 src/modules/unused
+src/__pycache__
+src/check_data.ipynb
 
 job_scheduler.sh
 snow_code.code-workspace

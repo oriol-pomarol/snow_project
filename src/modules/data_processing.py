@@ -1,5 +1,4 @@
 import xarray as xr
-import os
 import pandas as pd
 from timezonefinder import TimezoneFinder
 from os import listdir
@@ -44,7 +43,7 @@ def data_processing():
 
         # Obtain the dataset (model data)
         dir_path_mod = paths.raw_data / "simus_CROCUS" / station_name
-        file_path_mod = os.path.join(dir_path_mod, listdir(dir_path_mod)[0])
+        file_path_mod = dir_path_mod / listdir(dir_path_mod)[0]
         dataset_mod = xr.open_dataset(file_path_mod, decode_times=False)
 
         # Get the location of the station
@@ -102,8 +101,9 @@ def obs_preprocessing(df_obs):
 
 
 ###############################################################################
+
 def mod_preprocessing(dataset_mod):
-    # Find the starting datee for each simulation
+    # Find the starting date for each simulation
     time_var = dataset_mod.variables.get("time")
     start_date = pd.to_datetime(time_var.attrs.get("units")[12:])
 
@@ -134,7 +134,6 @@ def mod_preprocessing(dataset_mod):
 
 
 ###############################################################################
-
 
 def met_preprocessing(df_met, lat_station, lng_station):
     # Define the names of the aggregated meteorological variables
