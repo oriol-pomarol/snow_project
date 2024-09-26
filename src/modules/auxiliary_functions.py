@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import ephem
 import datetime
 import pytz
@@ -228,14 +227,13 @@ def temporal_data_split(dfs):
 
 def data_aug_split(X_trn, y_trn, X_aug, y_aug):
 
-    # Change the name of the augmented target
-    name_target = cfg.modes()['data_aug']['target']
-    y_aug = [y.rename(columns={'delta_mod_swe' : name_target}) for y in y_aug]
+    # Concatenate the augmented data
+    X_trn_aug = pd.concat(X_aug)
+    y_trn_aug = pd.concat(y_aug)
 
-    # Take a random subset for validation
-    X_trn_aug, X_val_aug, y_trn_aug, y_val_aug = \
-        train_test_split(pd.concat(X_aug), pd.concat(y_aug),
-                         test_size=0.1, random_state=10)
+    # Change the name of the augmented data to the target name
+    name_target = cfg.modes()['data_aug']['target']
+    y_aug = y_trn_aug.rename(columns={'delta_mod_swe' : name_target})
     
     # Calculate the training weights of the modelled data
     weight_aug = cfg.rel_weight * len(X_trn) / len(X_trn_aug)
@@ -246,4 +244,4 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug):
     X_trn = pd.concat([X_trn, X_trn_aug])
     y_trn = pd.concat([y_trn, y_trn_aug])
 
-    return X_trn, y_trn, X_val_aug, y_val_aug, sample_weight
+    return X_trn, y_trn, sample_weight

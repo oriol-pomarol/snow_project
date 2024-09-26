@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import itertools
-from sklearn.model_selection import train_test_split
 from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
@@ -89,18 +88,18 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
         # Obtain the training, validation and test data
         if cfg.temporal_split:
-            X_trn, X_val, X_tst, y_trn, y_val, y_tst = \
+            X_trn, X_tst, y_trn, y_tst = \
                 temporal_split(X, y, s)
         else:
-            X_trn, X_val, X_tst, y_trn, y_val, y_tst = \
+            X_trn, X_tst, y_trn, y_tst = \
                 station_split(X, y, s)
 
         # Add the augmented data if in the corresponding mode
         if mode == 'data_aug':
-            X_trn, y_trn, X_val_aug, y_val_aug, sample_weight = \
+            X_trn, y_trn, sample_weight = \
                 data_aug_split(X_trn, y_trn, X_aug, y_aug)
         else:
-            X_val_aug, y_val_aug, sample_weight = None, None, None
+            sample_weight = None
 
         # Iterate through every model
         for m, model in enumerate(models):
@@ -109,9 +108,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
             # Create the model and fit it to the data
             model.create_model(X_trn.shape[1], 0) # Change 0 to the number of crocus variables
-            model.fit(X_trn, y_trn, X_val, y_val,
-                      X_val_aug, y_val_aug,
-                      sample_weight=sample_weight)
+            model.fit(X_trn, y_trn, sample_weight=sample_weight)
             
             # Test the model on the validation data and store the loss
             loss = model.test(X=X_tst, y=y_tst)
@@ -172,11 +169,7 @@ def station_split(X, y, i):
     X_trn = pd.concat([X[j] for j in range(len(X)) if j!=i])
     y_trn = pd.concat([y[j] for j in range(len(y)) if j!=i])
 
-    # Take a random subset for validation
-    X_trn, X_val, y_trn, y_val = \
-        train_test_split(X_trn, y_trn, test_size=0.1, random_state=10)
-
-    return X_trn, X_val, X_tst, y_trn, y_val, y_tst
+    return X_trn, X_tst, y_trn, y_tst
 
 ###############################################################################
 
@@ -185,15 +178,9 @@ def temporal_split(X, y, i):
     # Select the last 20% of each station's data for testing
     X_tst = pd.concat([X[j].tail(int(0.2*len(X[j]))) for j in range(len(X))])
     y_tst = pd.concat([y[j].tail(int(0.2*len(y[j]))) for j in range(len(y))])
-
-    # Select the 10% before the test data for validation
-    X_val = pd.concat([X[j].tail(int(0.3*len(X[j]))).head(int(0.1*len(X[j])))
-                       for j in range(len(X))])
-    y_val = pd.concat([y[j].tail(int(0.3*len(y[j]))).head(int(0.1*len(y[j])))
-                       for j in range(len(y))])
     
     # Select the remaining data for training
-    X_trn = pd.concat([X[j].head(int(0.7*len(X[j]))) for j in range(len(X))])
-    y_trn = pd.concat([y[j].head(int(0.7*len(y[j]))) for j in range(len(y))])
+    X_trn = pd.concat([X[j].head(int(0.8*len(X[j]))) for j in range(len(X))])
+    y_trn = pd.concat([y[j].head(int(0.8*len(y[j]))) for j in range(len(y))])
 
-    return X_trn, X_val, X_tst, y_trn, y_val, y_tst
+    return X_trn, X_tst, y_trn, y_tst

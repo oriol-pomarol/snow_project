@@ -1,7 +1,6 @@
 import joblib
 import json
 from tensorflow import keras
-from keras.callbacks import EarlyStopping
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from config import paths, cfg
@@ -101,18 +100,15 @@ class Model:
         else:
             self.model = keras.models.load_model(path_dir / f'{self.mode}.h5')
 
-    def fit(self, X, y, X_val, y_val, X_aug=None, y_aug=None, **kwargs):
+    def fit(self, X, y, **kwargs):
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
-            X_val = preprocess_data_lstm(X_val, mode=self.mode)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
-            callbacks = [EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)]
-            history = self.model.fit(X, y, epochs=self.epochs, validation_data=(X_val, y_val), callbacks=callbacks, **kwargs)
-            self.epochs = len(history.history['loss'])
+            history = self.model.fit(X, y, epochs=self.epochs, **kwargs)
             return history
         
         # Fit the data with sklearn if it is a random forest

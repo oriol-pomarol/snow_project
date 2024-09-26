@@ -89,26 +89,16 @@ def model_training():
 
 def train_model(X, y, X_aug, y_aug, mode):
 
-    # Split the data into training and validation sets
-    if cfg.temporal_split:
-        # Take the last 10% of the data as validation
-        X_val = pd.concat([df.iloc[-int(len(df) * 0.1):, :] for df in X])
-        y_val = pd.concat([df.iloc[-int(len(df) * 0.1):, :] for df in y])
-        X_trn = pd.concat([df.iloc[:-int(len(df) * 0.1), :] for df in X])
-        y_trn = pd.concat([df.iloc[:-int(len(df) * 0.1), :] for df in y])
-
-    else:
-        # Split the data randomly into training and validation sets
-        X_trn, X_val, y_trn, y_val = \
-            train_test_split(pd.concat(X), pd.concat(y), test_size=0.2, random_state=10)
+    # Concatenate the training data
+    X_trn = pd.concat(X)
+    y_trn = pd.concat(y)
     
     # If in data augmentation mode, split the augmented data too
     if mode == 'data_aug':
-        X_trn, y_trn, X_val_aug, y_val_aug, sample_weight = \
-                data_aug_split(X_trn, y_trn, X_aug, y_aug)
-        
+        X_trn, y_trn, sample_weight = \
+            data_aug_split(X_trn, y_trn, X_aug, y_aug)
     else:
-        X_val_aug, y_val_aug, sample_weight = None, None, None
+        sample_weight = None
 
     # Create a model with the best hyperparameters
     best_model = Model(mode)
@@ -116,8 +106,7 @@ def train_model(X, y, X_aug, y_aug, mode):
     best_model.create_model(X[0].shape[1], 0) # Change 0 to the number of crocus variables
 
     # Train the model
-    history = best_model.fit(X = X_trn, y = y_trn, X_val = X_val, y_val = y_val,
-                             X_aug = X_val_aug, y_aug = y_val_aug, sample_weight = sample_weight)
+    history = best_model.fit(X = X_trn, y = y_trn, sample_weight = sample_weight)
 
     # If the model is a neural network, save the training history
     if best_model.get_model_type() == 'nn' or best_model.get_model_type() == 'lstm':
@@ -129,7 +118,6 @@ def train_model(X, y, X_aug, y_aug, mode):
         # Plot the MSE history of the training
         plt.figure()
         plt.plot(history.history['loss'], label='loss')
-        plt.plot(history.history['val_loss'], label='val_loss')
         plt.legend()
         plt.yscale('log')
         plt.xlabel('Epoch')
