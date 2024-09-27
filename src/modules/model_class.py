@@ -1,6 +1,8 @@
 import joblib
 import json
+import tensorflow as tf
 from tensorflow import keras
+from keras.callbacks import Callback
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from config import paths, cfg
@@ -17,20 +19,22 @@ class Model:
         self.model_type = None
         self.hyperparameters = None
 
-    def set_hps(self, model_type, hyperparameters):
+    def set_hps(self, model_type, hyperparameters, epochs=None):
         valid_model_type = model_type.lower() in ['nn', 'rf','lstm']
         if valid_model_type:
             self.model_type = model_type.lower()
         else:
             raise ValueError("Invalid model type.")
         self.hyperparameters = hyperparameters
+        self.epochs = epochs
     
     def save_hps(self, path_dir=None):
         if path_dir is None:
             path_dir = paths.temp_data
         hps_mt = {
             'hyperparameters': self.hyperparameters,
-            'model_type': self.model_type
+            'model_type': self.model_type,
+            'epochs': self.epochs
         }
         with open(path_dir / f'{self.mode}_hps.json', 'w') as f:
             json.dump(hps_mt, f)
@@ -40,14 +44,12 @@ class Model:
             path_dir = paths.temp_data
         with open(path_dir / f'{self.mode}_hps.json', 'r') as f:
             hps_mt = json.load(f)
-            self.hyperparameters = hps_mt.get('hyperparameters', {})
+            self.hyperparameters = hps_mt.get('hyperparameters')
             self.model_type = hps_mt.get('model_type')
+            self.epochs = hps_mt.get('epochs')
 
     def create_model(self, input_shape, crocus_shape=0):
         self.model = None  # Clear any existing model
-
-        if (self.model_type == 'nn') or (self.model_type == 'lstm'):
-            self.epochs = 100
 
         if self.model_type == 'nn':
             self.model = keras.Sequential()
@@ -58,6 +60,7 @@ class Model:
             self.model.add(keras.layers.Dense(1, activation='linear'))
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
+        
         elif self.model_type == 'lstm':
             sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*crocus_shape*(self.mode=='err_corr')) // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
@@ -79,6 +82,7 @@ class Model:
                 self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.hyperparameters.get('learning_rate', 0.001)),
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
+        
         elif self.model_type == 'rf':
             self.model = RandomForestRegressor(n_estimators=200, random_state=10,
                                                max_depth=self.hyperparameters.get('max_depth', None),
@@ -108,7 +112,12 @@ class Model:
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
-            history = self.model.fit(X, y, epochs=self.epochs, **kwargs)
+            save_model_callback = SaveModelAtEpoch(self.epochs)
+            history = self.model.fit(X, y, epochs=max(self.epochs),
+                                     callbacks=[save_model_callback],
+                                     **kwargs)
+            if len(self.epochs) > 1:
+                self.model = save_model_callback.get_saved_models()
             return history
         
         # Fit the data with sklearn if it is a random forest
@@ -125,8 +134,19 @@ class Model:
     def test(self, X, y):
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
-        y_pred = self.model.predict(X)
-        mse = mean_squared_error(y, y_pred)
+        if type(self.model) == dict:
+            mse = {}
+            for epoch, model in self.model.items():
+                y_pred = model.predict(X)
+                mse[epoch] = mean_squared_error(y, y_pred)
+                best_epoch = min(mse, key=mse.get)
+            self.model = self.model[best_epoch]
+            self.epochs = [best_epoch]
+            print(f"Reporting mse for model at epoch {best_epoch}")
+            mse = mse[best_epoch]
+        else:
+            y_pred = self.model.predict(X)
+            mse = mean_squared_error(y, y_pred)
         return mse
 
     def get_model_type(self):
@@ -154,3 +174,21 @@ class Model:
             model_name += f"_{param_name}{value_str}"
         
         return model_name
+    
+# Define a custom callback to save models at specific epochs
+class SaveModelAtEpoch(Callback):
+    def __init__(self, save_epochs):
+        super(SaveModelAtEpoch, self).__init__()
+        self.save_epochs = save_epochs
+        self.saved_models = {}
+
+    def on_epoch_end(self, epoch, logs=None):
+        if (epoch + 1) in self.save_epochs:
+            # Clone the model and store it
+            model_copy = tf.keras.models.clone_model(self.model)
+            model_copy.set_weights(self.model.get_weights())
+            self.saved_models[epoch + 1] = model_copy # Save the model copy and epoch
+            print(f"Model saved at epoch {epoch + 1}")
+
+    def get_saved_models(self):
+        return self.saved_models

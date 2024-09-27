@@ -71,13 +71,14 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
     lstm_hps = {'layers': [[512], [128, 64]],
                 'learning_rate': [1e-3, 1e-5],
                 'l2_reg': [0, 1e-2, 1e-4]}
+    epochs = [10, 50, 100]
 
     # Initialize a model for each model type and HP combination
     models = []
     models += initialize_models(mode, 'rf', rf_hps)
-    models += initialize_models(mode, 'nn', nn_hps)
+    models += initialize_models(mode, 'nn', nn_hps, epochs)
     if cfg.lag > 0:
-        models += initialize_models(mode, 'lstm', lstm_hps)
+        models += initialize_models(mode, 'lstm', lstm_hps, epochs)
 
     # Initialize losses for model validation
     n_splits = 1 if cfg.temporal_split else len(X)
@@ -133,7 +134,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
 ###############################################################################
 
-def initialize_models(mode, model_type, hp_vals_dict):
+def initialize_models(mode, model_type, hp_vals_dict, epochs=None):
     
     # Initialize a list of models
     models = []
@@ -150,7 +151,7 @@ def initialize_models(mode, model_type, hp_vals_dict):
 
         # Create a model with the HP combination
         model = Model(mode)
-        model.set_hps(model_type, hp_combination)
+        model.set_hps(model_type, hp_combination, epochs)
 
         # Append the model to the list
         models.append(model)
