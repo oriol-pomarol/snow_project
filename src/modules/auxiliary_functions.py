@@ -197,31 +197,36 @@ def add_lagged_values(df):
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def temporal_data_split(dfs):
+def find_temporal_split_dates(dfs):
     
     # Define a dataframe to store the split dates
-    df_split_dates = pd.DataFrame(columns=['split_date'])
+    df_split_dates = pd.DataFrame(columns=['trn_val_split_date',
+                                           'val_tst_split_date',
+                                           'tst_trn_split_date'])
+    
+    # Create a MultiIndex for the dataframe
+    df_split_dates.index = pd.MultiIndex.from_tuples([], names=['station', 'split'])
 
-    # Initialize the train and test dataframe lists
-    dfs_train = []
-    dfs_test = []
+    n_splits = cfg.n_temporal_splits
 
-    for i, df in enumerate(dfs):
+    for station_idx, df in enumerate(dfs):
+        for split_idx in range(n_splits):
 
-        # Define the train/test split indices
-        split_idx = len(df) - int(len(df) * cfg.test_size)
+            # Define the split indices
+            trn_val_split_idx = split_idx * len(df) // n_splits
+            val_tst_split_idx = trn_val_split_idx + len(df) * cfg.val_ratio // n_splits
+            tst_trn_split_idx = ((split_idx + 1) * len(df) - 1) // n_splits
 
-        # Save the split dates
-        df_split_dates.loc[cfg.trn_stn[i]] = [df.index[split_idx]]
-
-        # Split the data into train and test
-        dfs_train.append(df.iloc[:split_idx, :])
-        dfs_test.append(df.iloc[split_idx:, :])
+            # Save the split dates
+            df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx)] = \
+                [df.index[trn_val_split_idx],
+                 df.index[val_tst_split_idx],
+                 df.index[tst_trn_split_idx]]
 
     # Save the train_test split dates as a csv
     df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
 
-    return dfs_train, dfs_test
+    return
 
 ###############################################################################
 
