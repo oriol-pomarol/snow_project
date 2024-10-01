@@ -207,21 +207,44 @@ def find_temporal_split_dates(dfs):
     # Create a MultiIndex for the dataframe
     df_split_dates.index = pd.MultiIndex.from_tuples([], names=['station', 'split'])
 
+    # Retrieve the number of splits
     n_splits = cfg.n_temporal_splits
 
     for station_idx, df in enumerate(dfs):
-        for split_idx in range(n_splits):
 
-            # Define the split indices
-            trn_val_split_idx = split_idx * len(df) // n_splits
-            val_tst_split_idx = trn_val_split_idx + len(df) * cfg.val_ratio // n_splits
-            tst_trn_split_idx = ((split_idx + 1) * len(df) - 1) // n_splits
+        # Shift the index by 6 months to start the year in July
+        shifted_index = df.index - pd.offsets.DateOffset(months=6)
+
+        # Get a list of years with more than 20% of available data
+        years = shifted_index.to_period('Y').unique().year
+        years = [year for year in years if sum(shifted_index.year == year) > 0.2 * 365]
+
+        # Get the timestamps starting in July
+        timestamps = [pd.Timestamp(f'{year}-07-01') for year in years]
+
+        # Split the timestamps into n_splits
+        split_dates = np.array_split(timestamps, n_splits)
+
+        # Iterate over the split dates
+        for split_idx, split in enumerate(split_dates):
+
+            # Take the trn-val split date as the first date
+            trn_val_date = split[0]
+
+            # Take the val-tst split date considering the validation ratio
+            val_tst_date = split[max(int(len(split) * cfg.val_ratio), 1)]
+
+            # Take the first date of the next split as the tst-trn split date
+            if split_idx < n_splits - 1:	
+                tst_trn_date = split_dates[split_idx + 1][0]
+
+            # If it is the last split, take the last year in the split plus one
+            else:
+                tst_trn_date = split[-1] + pd.DateOffset(years=1)
 
             # Save the split dates
             df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx)] = \
-                [df.index[trn_val_split_idx],
-                 df.index[val_tst_split_idx],
-                 df.index[tst_trn_split_idx]]
+                [trn_val_date, val_tst_date, tst_trn_date]
 
     # Save the train_test split dates as a csv
     df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
