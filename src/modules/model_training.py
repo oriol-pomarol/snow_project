@@ -45,39 +45,67 @@ def model_training():
         X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
         y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
 
-        # Take the augmented data if in the corresponding mode
+        # Train the model
         if mode == 'data_aug':
-            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+            for i, test_df in enumerate(tst_dfs):
+
+                # Select all but one station for augmentation
+                X_aug = [df.filter(regex='^met_') for j, df in \
+                         enumerate(aug_dfs) if j != i]
+                y_aug = [df[['delta_mod_swe']] for j, df in \
+                         enumerate(aug_dfs) if j != i]
+                
+                # Train the model
+                model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
+                model.save_model()
+
+                # Select the one station for testing
+                X_tst = test_df.filter(regex=mode_vars['predictors'])
+                y_tst = test_df[[mode_vars['target']]]
+
+                # Predict the delta SWE for the training and test data
+                y_train_pred = model.predict(pd.concat(X_obs)).ravel()
+                y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
+
+                # If in data augmentation, predict delta SWE for the augmented data
+                if mode == 'data_aug':
+                    y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                    y_aug = pd.concat(y_aug).values.ravel()
+                else:
+                    y_aug_pred = None
+
+                # Concatenate the observed values and convert to 1D numpy array
+                y_train = pd.concat(y_obs).values.ravel()
+                y_tst = pd.concat(y_tst).values.ravel()
+
+                # Make a plot vs true plot
+                plot_pred_vs_true(mode, y_train, y_train_pred,
+                                y_tst, y_tst_pred, y_aug, y_aug_pred)
         else:
             X_aug, y_aug = None, None
-            
-        # Train the best model and save it
-        model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-        model.save_model()
+            model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
+            model.save_model()
+            X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
+            y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
 
-        # Take the test data for direct prediction
-        X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-        y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+            # Predict the delta SWE for the training and test data
+            y_train_pred = model.predict(pd.concat(X_obs)).ravel()
+            y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
-        # Predict the delta SWE for the training and test data
-        y_train_pred = model.predict(pd.concat(X_obs)).ravel()
-        y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
+            # If in data augmentation, predict delta SWE for the augmented data
+            if mode == 'data_aug':
+                y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                y_aug = pd.concat(y_aug).values.ravel()
+            else:
+                y_aug_pred = None
 
-        # If in data augmentation, predict delta SWE for the augmented data
-        if mode == 'data_aug':
-            y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
-            y_aug = pd.concat(y_aug).values.ravel()
-        else:
-            y_aug_pred = None
+            # Concatenate the observed values and convert to 1D numpy array
+            y_train = pd.concat(y_obs).values.ravel()
+            y_tst = pd.concat(y_tst).values.ravel()
 
-        # Concatenate the observed values and convert to 1D numpy array
-        y_train = pd.concat(y_obs).values.ravel()
-        y_tst = pd.concat(y_tst).values.ravel()
-
-        # Make a plot vs true plot
-        plot_pred_vs_true(mode, y_train, y_train_pred,
-                          y_tst, y_tst_pred, y_aug, y_aug_pred)
+            # Make a plot vs true plot
+            plot_pred_vs_true(mode, y_train, y_train_pred,
+                            y_tst, y_tst_pred, y_aug, y_aug_pred)
         
         print(f'{mode} trained successfully...')
 

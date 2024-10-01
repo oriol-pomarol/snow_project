@@ -20,8 +20,8 @@ class cfg:
         "wfj",
     )
     trn_stn: tuple = ('cdp', 'rme', 'sod')
-    aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
-    tst_stn: tuple = ('wfg',)
+    aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfg')
+    tst_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfg')
     drop_data: float = 0.6
 
     def modes():
