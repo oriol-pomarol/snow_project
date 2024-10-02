@@ -9,13 +9,17 @@ def forward_simulation():
     # Load the processed data
     dict_dfs = load_processed_data()
     
-    # Load the models
+    # Load the models for every mode
     dict_models = {}
     for mode in cfg.modes().keys():
-        model = Model(mode)
-        model.load_hps()
-        model.load_model()
-        dict_models[mode] = model
+        # Load the models, also for all data_aug splits
+        model_list = []
+        for i in range(len(cfg.aug_stn)) if mode == 'data_aug' else range(1):
+            model = Model(mode)
+            model.load_hps()
+            model.load_model(suffix=f"split_{i}" if mode == 'data_aug' else '')
+            model_list.append(model)
+        dict_models[mode] = model_list
 
     # Simulate SWE for each station
     for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
@@ -28,11 +32,19 @@ def forward_simulation():
         # Initialize a vector for the predicted SWE
         pred_swe_arr = np.zeros((df_stn_clean.shape[0], len(dict_models)))
 
-        for model_idx, (mode, mode_vars) in enumerate(cfg.modes().items()):
-            print(f"Mode {model_idx + 1} of {len(dict_models)}.")
+        for mode_idx, (mode, mode_vars) in enumerate(cfg.modes().items()):
+            print(f"Mode {mode_idx + 1} of {len(dict_models)}.")
 
             # Get the model and the predictor data
-            model = dict_models[mode]
+            model_list = dict_models[mode]
+            if (mode == 'data_aug') and (station_name in cfg.tst_stn):
+                # Retrieve index of the station in the test stations
+                tst_station_idx = cfg.tst_stn.index(station_name)
+                # Select the model corresponding to the test station
+                model = model_list[tst_station_idx]
+            else:
+                # Select the first model in the list
+                model = model_list[0]
             df_station_X = df_stn_clean.filter(regex=mode_vars['predictors'])
 
             # Get the number of rows in the dataframe
@@ -56,10 +68,10 @@ def forward_simulation():
                     pred_dswe = mod_dswe - pred_dswe
 
                 # Ensure that the predicted SWE is non-negative
-                pred_swe = max(pred_swe_arr[row_idx-1, model_idx] + pred_dswe, 0)
+                pred_swe = max(pred_swe_arr[row_idx-1, mode_idx] + pred_dswe, 0)
 
                 # Save the predicted SWE
-                pred_swe_arr[row_idx, model_idx] = pred_swe
+                pred_swe_arr[row_idx, mode_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr, index=df_station_X.index, 
