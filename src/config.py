@@ -5,8 +5,8 @@ from pathlib import Path
 class cfg:
     lag: int = 14
     temporal_split: bool = True
-    n_temporal_splits: int = 3
-    val_ratio: float = 1/3
+    n_temporal_splits: int = 5
+    val_ratio: float = 0.15
     rel_weight: float = 1
     station_names: tuple = (
         "cdp",
