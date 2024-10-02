@@ -21,7 +21,7 @@ class cfg:
     )
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfg')
-    tst_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfg')
+    tst_stn: tuple = aug_stn
     drop_data: float = 0.6
 
     def modes():
