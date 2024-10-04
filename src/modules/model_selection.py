@@ -18,7 +18,7 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    ignore_cols = ["delta_obs_swe", "obs_swe"]
+    ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
     dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
     aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
 
