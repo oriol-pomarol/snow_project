@@ -43,7 +43,7 @@ def simulation_analysis(station_years=[]):
         # Clean the data
         df_station_clean = dict_dfs[station_name].dropna()
 
-        if cfg.temporal_split and station_name in dict_split_dates:
+        if cfg.temporal_split and (station_name in cfg.trn_stn):
             # Split the data into training and testing sets
             split_date = dict_split_dates[station_name]
             df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
@@ -62,7 +62,13 @@ def simulation_analysis(station_years=[]):
         else:
             # Calculate the nNSE of the whole station and append it to the df
             obs_swe_train = df_station_clean['obs_swe']
-            nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
+            
+            if len(obs_swe_train) == 0:
+                nnse_train = [float('nan')] * len(sim_modes)
+                print(f"Warning: No observations available for evaluating station {station_name}.")
+            else:
+                nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
+            
             df_nnse.loc[station_name] = nnse_train
 
     # Save the nNSE as csv
@@ -105,13 +111,17 @@ def simulation_analysis(station_years=[]):
 
             # Plot the observed SWE and calculate the nNSE
             for column_name in df_masked.columns:
-                nNSE = calculate_nNSE(df_masked_clean["obs_swe"] ,
-                                      df_masked_clean[column_name])
+                if len(df_masked_clean["obs_swe"]) == 0:
+                    nNSE = float('nan')
+                    print(f"Warning: No observations available for station_year = {station_year}.")
+                else:
+                    nNSE = calculate_nNSE(df_masked_clean["obs_swe"],
+                                          df_masked_clean[column_name])
                 clean_column = df_masked[column_name].dropna()                
                 ax.plot(clean_column.index, clean_column,
                         label=f'{column_name} (nNSE: {nNSE:.2f})')
 
-            # Create the  legend
+            # Create the legend
             ax.legend(fontsize='large')
             handles, labels = ax.get_legend_handles_labels()
             handles.append(Line2D([0], [0], marker='None', color='white', label=f'Data points: {num_data_points}'))
