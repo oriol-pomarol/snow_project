@@ -5,7 +5,7 @@ from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
 from config import cfg, paths
 
-def simulation_analysis(station_years=[]):
+def simulation_analysis():
 
     if cfg.temporal_split:
         # Load the train/test into a dictionary
@@ -76,7 +76,7 @@ def simulation_analysis(station_years=[]):
 
     # Plot the results
     print('Plotting the results...')  
-    for station_year in station_years:
+    for station_year in cfg.station_years:
 
         station_name, year = station_year.split("_")
 

@@ -23,6 +23,8 @@ class cfg:
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
     tst_stn: tuple = ('wfg',)
     drop_data: float = 0.6
+    station_years: tuple = ()
+
 
     def modes():
         return {
