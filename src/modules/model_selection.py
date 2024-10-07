@@ -6,7 +6,7 @@ from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
-    temporal_data_split,
+    find_temporal_split_dates,
     data_aug_split,
 )
 
@@ -28,9 +28,9 @@ def model_selection():
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
-    # Define the training data in case of a temporal split
+    # Find the dates for the temporal split
     if cfg.temporal_split:
-        trn_dfs, _ = temporal_data_split(trn_dfs)
+        find_temporal_split_dates(trn_dfs)
 
     for mode, mode_vars in cfg.modes().items():
     
@@ -81,7 +81,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         models += initialize_models(mode, 'lstm', lstm_hps, epochs)
 
     # Initialize losses for model validation
-    n_splits = 1 if cfg.temporal_split else len(X)
+    n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
     losses = np.zeros((len(models), n_splits))
 
     # Iterate over each split
@@ -90,10 +90,10 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         # Obtain the training, validation and test data
         if cfg.temporal_split:
             X_trn, X_tst, y_trn, y_tst = \
-                temporal_split(X, y, s)
+                temporal_validation_split(X, y, s)
         else:
             X_trn, X_tst, y_trn, y_tst = \
-                station_split(X, y, s)
+                station_validation_split(X, y, s)
 
         # Add the augmented data if in the corresponding mode
         if mode == 'data_aug':
@@ -160,7 +160,7 @@ def initialize_models(mode, model_type, hp_vals_dict, epochs=None):
 
 ###############################################################################
 
-def station_split(X, y, i):
+def station_validation_split(X, y, i):
 
     # Take one station for testing
     X_tst = X[i]
@@ -174,14 +174,34 @@ def station_split(X, y, i):
 
 ###############################################################################
 
-def temporal_split(X, y, i):
+def temporal_validation_split(X, y, split_idx):
 
-    # Select the last 20% of each station's data for testing
-    X_tst = pd.concat([X[j].tail(int(0.2*len(X[j]))) for j in range(len(X))])
-    y_tst = pd.concat([y[j].tail(int(0.2*len(y[j]))) for j in range(len(y))])
-    
-    # Select the remaining data for training
-    X_trn = pd.concat([X[j].head(int(0.8*len(X[j]))) for j in range(len(X))])
-    y_trn = pd.concat([y[j].head(int(0.8*len(y[j]))) for j in range(len(y))])
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
 
-    return X_trn, X_tst, y_trn, y_tst
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_val, y_val = [], [], [], []
+
+    for station in cfg.trn_stn:
+
+        # Retrieve the split dates for the current station and split
+        trn_val_split_date, val_tst_split_date, tst_trn_split_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Filter the trn and val data conditions for the current station and split
+        trn_cond = (X[station].index < trn_val_split_date) | \
+                   (X[station].index >= tst_trn_split_date)
+        val_cond = (X[station].index >= trn_val_split_date) & \
+                   (X[station].index < val_tst_split_date)
+
+        # Append the training and validation data
+        X_trn.append(X[station].loc[trn_cond])
+        y_trn.append(y[station].loc[trn_cond])
+        X_val.append(X[station].loc[val_cond])
+        y_val.append(y[station].loc[val_cond])        
+
+    # Concatenate the training and validation data
+    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
+    X_val, y_val = pd.concat(X_val), pd.concat(y_val)
+
+    return X_trn, X_val, y_trn, y_val

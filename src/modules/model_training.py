@@ -214,3 +214,33 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
     test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
 
     return
+
+###############################################################################
+
+def temporal_test_split(X, y, split_idx):
+
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_tst, y_tst = [], [], [], []
+
+    for station in cfg.trn_stn:
+
+        # Retrieve the split dates for the current station and split
+        trn_val_split_date, val_tst_split_date, tst_trn_split_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Filter the trn and tst data conditions for the current station and split
+        trn_cond = (X[station].index < val_tst_split_date) | \
+                   (X[station].index >= tst_trn_split_date)
+        tst_cond = (X[station].index >= val_tst_split_date) & \
+                   (X[station].index < tst_trn_split_date)
+
+        # Append the training and test data
+        X_trn.append(X[station].loc[trn_cond])
+        y_trn.append(y[station].loc[trn_cond])
+        X_tst.append(X[station].loc[tst_cond])
+        y_tst.append(y[station].loc[tst_cond])          
+
+    return X_trn, X_tst, y_trn, y_tst
