@@ -17,7 +17,7 @@ def forward_simulation():
         for i in range(len(cfg.aug_stn)) if mode == 'data_aug' else range(1):
             model = Model(mode)
             model.load_hps()
-            model.load_model(suffix=f"split_{i}" if mode == 'data_aug' else '')
+            model.load_model(suffix=f"aug_split_{i}" if mode == 'data_aug' else '')
             model_list.append(model)
         dict_models[mode] = model_list
 

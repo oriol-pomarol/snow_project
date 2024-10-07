@@ -69,7 +69,7 @@ def model_training():
             
             # Train the model
             model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-            model.save_model(suffix=f'split_{i}' if mode == 'data_aug' else '')
+            model.save_model(suffix=f'aug_split_{i}' if mode == 'data_aug' else '')
 
             # Predict the delta SWE for the training and test data
             y_train_pred = model.predict(pd.concat(X_obs)).ravel()
