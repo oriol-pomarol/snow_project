@@ -59,7 +59,8 @@ def model_training():
                 
             # Train the best model and save it
             model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-            model.save_model()
+            suffix = f'split_{s}' if cfg.temporal_split else ''
+            model.save_model(suffix=suffix)
 
             # Take the test data for direct prediction
             X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
@@ -81,8 +82,8 @@ def model_training():
             y_tst = pd.concat(y_tst).values.ravel()
 
             # Make a plot vs true plot
-            plot_pred_vs_true(mode, y_train, y_train_pred,
-                            y_tst, y_tst_pred, y_aug, y_aug_pred)
+            plot_pred_vs_true(mode, y_train, y_train_pred, y_tst, y_tst_pred,
+                              y_aug, y_aug_pred, suffix)
         
         print(f'{mode} trained successfully...')
 
@@ -134,7 +135,7 @@ def train_model(X, y, X_aug, y_aug, mode):
 ###############################################################################
 
 def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
-                      y_aug=None, y_aug_pred=None):
+                      y_aug=None, y_aug_pred=None, suffix=''):
 
     # Create scatter plot for training data
     fig = plt.figure(figsize=(12, 7))
@@ -181,7 +182,8 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
                 verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(paths.figures / f'pred_vs_true_{mode}.png')
+    name = f'pred_vs_true_{mode}_{suffix}.png' if suffix else f'pred_vs_true_{mode}.png'
+    plt.savefig(paths.figures / name)
 
     # Create scatter plot for test data
     fig_test = plt.figure(figsize=(12, 7))
@@ -202,19 +204,23 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
         verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
+    name = f'pred_vs_true_tst_{mode}_{suffix}.png' if suffix else f'pred_vs_true_tst_{mode}.png'
+    plt.savefig(paths.figures / name)
 
     # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train, 'PredictedValues': y_train_pred})
-    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
+    name = f'pred_vs_true_{mode}_{suffix}.csv' if suffix else f'pred_vs_true_{mode}.csv'
+    train_df.to_csv(paths.outputs / name, index=False)
 
     if mode == 'data_aug':
         aug_df = pd.DataFrame({'TrueValues': y_aug, 'PredictedValues': y_aug_pred})
-        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+        name = f'pred_vs_true_{mode}_aug_{suffix}.csv' if suffix else f'pred_vs_true_{mode}_aug.csv'
+        aug_df.to_csv(paths.outputs / name, index=False)
 
     # Save the true and predicted values as csv
     test_df = pd.DataFrame({'TrueValues': y_test, 'PredictedValues': y_test_pred})
-    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
+    name = f'pred_vs_true_tst_{mode}_{suffix}.csv' if suffix else f'pred_vs_true_tst_{mode}.csv'
+    test_df.to_csv(paths.outputs / name, index=False)
 
     return
 

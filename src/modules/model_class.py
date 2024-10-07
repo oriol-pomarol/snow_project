@@ -88,13 +88,14 @@ class Model:
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
             
-    def save_model(self, path_dir=None):
+    def save_model(self, path_dir=None, suffix=''):
         if path_dir is None:
             path_dir = paths.models
+        model_name = '_'.join([self.mode, suffix]) if suffix else self.mode
         if self.model_type == 'rf':
-            joblib.dump(self.model, path_dir/ f'{self.mode}.joblib')
+            joblib.dump(self.model, path_dir/ f'{model_name}.joblib')
         else:
-            self.model.save(path_dir / f'{self.mode}.h5')
+            self.model.save(path_dir / f'{model_name}.h5')
 
     def load_model(self, path_dir=None):
         if path_dir is None:
