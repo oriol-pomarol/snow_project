@@ -68,9 +68,9 @@ def model_training():
             X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
             y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
 
-        # Predict the delta SWE for the training and test data
-        y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
-        y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
+            # Predict the delta SWE for the training and test data
+            y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
+            y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
@@ -79,13 +79,13 @@ def model_training():
             else:
                 y_aug_pred = None
 
-        # Concatenate the observed values and convert to 1D numpy array
-        y_trn = pd.concat(y_obs).values.ravel()
-        y_tst = pd.concat(y_tst).values.ravel()
+            # Concatenate the observed values and convert to 1D numpy array
+            y_trn = pd.concat(y_obs).values.ravel()
+            y_tst = pd.concat(y_tst).values.ravel()
 
             # Make a plot vs true plot
             plot_pred_vs_true(mode, y_trn, y_trn_pred, y_tst, y_tst_pred,
-                              y_aug, y_aug_pred, suffix)
+                                y_aug, y_aug_pred, suffix)
         
         print(f'{mode} trained successfully...')
 
