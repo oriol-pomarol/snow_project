@@ -21,7 +21,7 @@ class cfg:
     )
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa')
-    tst_stn: tuple = ('wfg',)
+    tst_stn: tuple = ('wfj',)
     drop_data: float = 0.6
     station_years: tuple = ()
 

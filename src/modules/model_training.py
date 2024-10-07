@@ -36,7 +36,7 @@ def model_training():
         trn_dfs, tst_dfs = temporal_data_split(trn_dfs)
 
     else:
-        tst_dfs = [all_dfs[station] for station in cfg.tst_stn]
+        tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
 
     for mode, mode_vars in cfg.modes().items():
     
