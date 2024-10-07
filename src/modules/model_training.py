@@ -59,7 +59,7 @@ def model_training():
                 
             # Train the best model and save it
             model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-            suffix = f'split_{s}' if cfg.temporal_split else ''
+            suffix = f'temp_split_{s}' if cfg.temporal_split else ''
             model.save_model(suffix=suffix)
 
             # Take the test data for direct prediction
