@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
@@ -9,7 +8,6 @@ from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
-    temporal_data_split,
     data_aug_split
 )
 
@@ -31,55 +29,63 @@ def model_training():
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
-    # Define the test data
-    if cfg.temporal_split:
-        trn_dfs, tst_dfs = temporal_data_split(trn_dfs)
-
-    else:
-        tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
-
     for mode, mode_vars in cfg.modes().items():
-    
-        # Train the best model for the direct prediction setup
         print(f'Starting {mode} training...')
-        
-        # Take the corresponding predictor and target variables
-        X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-        y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+                    
+        # Define the number of splits for training the model
+        n_splits = cfg.n_temporal_splits if cfg.temporal_split else 1
 
-        # Take the augmented data if in the corresponding mode
-        if mode == 'data_aug':
-            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
-        else:
-            X_aug, y_aug = None, None
+        for s in range(n_splits):
+            print(f'Starting split {s+1} of {n_splits}...')
             
-        # Train the best model and save it
-        model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-        model.save_model()
+            # Take the corresponding predictor and target variables
+            X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
+            y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
 
-        # Take the test data for direct prediction
-        X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-        y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+            # Split the data into training and test sets
+            if cfg.temporal_split:
+                X_trn, X_tst, y_trn, y_tst = temporal_test_split(X_obs, y_obs, s)
+        
+            else:
+                X_trn, y_trn = X_obs, y_obs
+                tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
+                X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
+                y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+
+            # Take the augmented data if in the corresponding mode
+            if mode == 'data_aug':
+                X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+                y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+            else:
+                X_aug, y_aug = None, None
+                
+            # Train the best model and save it
+            model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
+            suffix = f'temp_split_{s}' if cfg.temporal_split else ''
+            model.save_model(suffix=suffix)
+
+            # Take the test data for direct prediction
+            X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
+            y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
 
         # Predict the delta SWE for the training and test data
         y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
         y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
-        # If in data augmentation, predict delta SWE for the augmented data
-        if mode == 'data_aug':
-            y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
-            y_aug = pd.concat(y_aug).values.ravel()
-        else:
-            y_aug_pred = None
+            # If in data augmentation, predict delta SWE for the augmented data
+            if mode == 'data_aug':
+                y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                y_aug = pd.concat(y_aug).values.ravel()
+            else:
+                y_aug_pred = None
 
         # Concatenate the observed values and convert to 1D numpy array
         y_trn = pd.concat(y_obs).values.ravel()
         y_tst = pd.concat(y_tst).values.ravel()
 
-        # Make a plot vs true plot
-        plot_pred_vs_true(mode, y_trn, y_trn_pred,
-                          y_tst, y_tst_pred, y_aug, y_aug_pred)
+            # Make a plot vs true plot
+            plot_pred_vs_true(mode, y_trn, y_trn_pred, y_tst, y_tst_pred,
+                              y_aug, y_aug_pred, suffix)
         
         print(f'{mode} trained successfully...')
 
@@ -131,7 +137,7 @@ def train_model(X, y, X_aug, y_aug, mode):
 ###############################################################################
 
 def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
-                      y_aug=None, y_aug_pred=None):
+                      y_aug=None, y_aug_pred=None, suffix=''):
 
     # Create scatter plot for training data
     fig = plt.figure(figsize=(12, 7))
@@ -178,7 +184,8 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
                 verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(paths.figures / f'pred_vs_true_{mode}.png')
+    name = f'pred_vs_true_{mode}_{suffix}.png' if suffix else f'pred_vs_true_{mode}.png'
+    plt.savefig(paths.figures / name)
 
     # Create scatter plot for test data
     fig_test = plt.figure(figsize=(12, 7))
@@ -199,19 +206,23 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
         verticalalignment='top')
 
     plt.tight_layout()
-    plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
+    name = f'pred_vs_true_tst_{mode}_{suffix}.png' if suffix else f'pred_vs_true_tst_{mode}.png'
+    plt.savefig(paths.figures / name)
 
     # Save the true and predicted values as csv
     train_df = pd.DataFrame({'TrueValues': y_train, 'PredictedValues': y_train_pred})
-    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
+    name = f'pred_vs_true_{mode}_{suffix}.csv' if suffix else f'pred_vs_true_{mode}.csv'
+    train_df.to_csv(paths.outputs / name, index=False)
 
     if mode == 'data_aug':
         aug_df = pd.DataFrame({'TrueValues': y_aug, 'PredictedValues': y_aug_pred})
-        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+        name = f'pred_vs_true_{mode}_aug_{suffix}.csv' if suffix else f'pred_vs_true_{mode}_aug.csv'
+        aug_df.to_csv(paths.outputs / name, index=False)
 
     # Save the true and predicted values as csv
     test_df = pd.DataFrame({'TrueValues': y_test, 'PredictedValues': y_test_pred})
-    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
+    name = f'pred_vs_true_tst_{mode}_{suffix}.csv' if suffix else f'pred_vs_true_tst_{mode}.csv'
+    test_df.to_csv(paths.outputs / name, index=False)
 
     return
 
