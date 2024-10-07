@@ -228,20 +228,19 @@ def temporal_data_split(dfs):
 def data_aug_split(X_trn, y_trn, X_aug, y_aug):
 
     # Concatenate the augmented data
-    X_trn_aug = pd.concat(X_aug)
-    y_trn_aug = pd.concat(y_aug)
+    X_aug = pd.concat(X_aug)
+    y_aug = pd.concat(y_aug)
 
     # Change the name of the augmented data to the target name
-    name_target = cfg.modes()['data_aug']['target']
-    y_aug = y_trn_aug.rename(columns={'delta_mod_swe' : name_target})
+    y_aug = y_aug.rename(columns={y_aug.columns[0] : y_trn.columns[0]})
     
     # Calculate the training weights of the modelled data
-    weight_aug = cfg.rel_weight * len(X_trn) / len(X_trn_aug)
-    sample_weight = np.concatenate((np.ones(len(X_trn)), 
-                                    np.full(len(X_trn_aug), weight_aug)))
+    weight_aug = cfg.rel_weight * len(y_trn) / len(y_aug)
+    sample_weight = np.concatenate((np.ones(len(y_trn)), 
+                                    np.full(len(y_aug), weight_aug)))
     
     # Concatenate the observed and augmented datasets
-    X_trn = pd.concat([X_trn, X_trn_aug])
-    y_trn = pd.concat([y_trn, y_trn_aug])
+    X_trn = pd.concat([X_trn, X_aug])
+    y_trn = pd.concat([y_trn, y_aug])
 
     return X_trn, y_trn, sample_weight

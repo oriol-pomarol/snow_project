@@ -188,7 +188,7 @@ class SaveModelAtEpoch(Callback):
             model_copy = tf.keras.models.clone_model(self.model)
             model_copy.set_weights(self.model.get_weights())
             self.saved_models[epoch + 1] = model_copy # Save the model copy and epoch
-            print(f"Model saved at epoch {epoch + 1}")
+            print(f"\n\nModel saved at epoch {epoch + 1}\n")
 
     def get_saved_models(self):
         return self.saved_models
