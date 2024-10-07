@@ -35,6 +35,9 @@ def forward_simulation():
             model = dict_models[mode]
             df_station_X = df_stn_clean.filter(regex=mode_vars['predictors'])
 
+            # Take only a fraction of the data
+            df_station_X = df_station_X.iloc[:int(len(df_station_X) * (1 - cfg.drop_data))]
+
             # Get the number of rows in the dataframe
             n_rows = len(df_station_X)
 

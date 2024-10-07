@@ -106,6 +106,10 @@ class Model:
 
     def fit(self, X, y, **kwargs):
 
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100:
+            X = X.sample(frac=1 - cfg.drop_data)
+
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
@@ -132,6 +136,11 @@ class Model:
         return y_pred
 
     def test(self, X, y):
+
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100:
+            X = X.sample(frac=1 - cfg.drop_data)
+
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
         if type(self.model) == dict:
