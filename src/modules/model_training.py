@@ -86,13 +86,10 @@ def model_training():
             y_tst = pd.concat(y_tst).values.ravel()
 
             # Append the predictions to the dataframes
-            df_trn = df_trn.append(pd.DataFrame({'y_trn': y_trn, 'y_trn_pred': y_trn_pred,
-                                                 'split': s}))
-            df_tst = df_tst.append(pd.DataFrame({'y_tst': y_tst, 'y_tst_pred': y_tst_pred,
-                                                 'split': s}))
+            df_trn = pd.concat([df_trn, pd.DataFrame({'y_trn': y_trn, 'y_trn_pred': y_trn_pred, 'split': s})], ignore_index=True)
+            df_tst = pd.concat([df_tst, pd.DataFrame({'y_tst': y_tst, 'y_tst_pred': y_tst_pred, 'split': s})], ignore_index=True)
             if mode == 'data_aug':
-                df_aug = df_aug.append(pd.DataFrame({'y_aug': y_aug, 'y_aug_pred': y_aug_pred,
-                                                     'split': s}))
+                df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug, 'y_aug_pred': y_aug_pred, 'split': s})], ignore_index=True)
 
         # Save the dataframes
         df_trn.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
