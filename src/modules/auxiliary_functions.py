@@ -18,8 +18,8 @@ def load_processed_data():
     for station_name in cfg.station_names:
         filename = f"df_{station_name}_lag_{cfg.lag}.csv"
         df_station = pd.read_csv(paths.proc_data / filename, index_col=0)
+        df_station.index = pd.to_datetime(df_station.index)
         dict_dfs[station_name] = df_station
-
     return dict_dfs
 
 ###############################################################################
@@ -215,7 +215,7 @@ def find_temporal_split_dates(dfs):
         shifted_index = df.index - pd.offsets.DateOffset(months=6)
 
         # Get a list of years with more than 20% of available data
-        years = shifted_index.to_period('Y').unique().year
+        years = shifted_index.year.unique()
         years = [year for year in years if sum(shifted_index.year == year) > 0.2 * 365]
 
         # Get the timestamps starting in July
@@ -245,7 +245,7 @@ def find_temporal_split_dates(dfs):
             val_start_date = timestamps[timestamps.index(val_end_date) - val_years]
             
             # Save the split dates
-            df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx)] = \
+            df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx), :] = \
                 [tst_start_date, tst_end_date, val_start_date, val_end_date]
 
     # Save the train_test split dates as a csv

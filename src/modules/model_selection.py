@@ -182,23 +182,26 @@ def temporal_validation_split(X, y, split_idx):
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_val, y_val = [], [], [], []
 
-    for station in cfg.trn_stn:
+    for i, station in enumerate(cfg.trn_stn):
 
         # Retrieve the split dates for the current station and split
-        trn_val_split_date, val_tst_split_date, tst_trn_split_date = \
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
             df_split_dates.loc[(station, split_idx)].values
         
         # Filter the trn and val data conditions for the current station and split
-        trn_cond = (X[station].index < trn_val_split_date) | \
-                   (X[station].index >= tst_trn_split_date)
-        val_cond = (X[station].index >= trn_val_split_date) & \
-                   (X[station].index < val_tst_split_date)
+        trn_cond = ((X[i].index < tst_start_date) | \
+                    (X[i].index >= tst_end_date)) & \
+                   ((X[i].index < val_start_date) | \
+                    (X[i].index >= val_end_date))
+     
+        val_cond = (X[i].index >= val_start_date) & \
+                   (X[i].index < val_end_date)
 
         # Append the training and validation data
-        X_trn.append(X[station].loc[trn_cond])
-        y_trn.append(y[station].loc[trn_cond])
-        X_val.append(X[station].loc[val_cond])
-        y_val.append(y[station].loc[val_cond])        
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_val.append(X[i].loc[val_cond])
+        y_val.append(y[i].loc[val_cond])        
 
     # Concatenate the training and validation data
     X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)

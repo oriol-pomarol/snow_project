@@ -33,8 +33,11 @@ def forward_simulation():
         predictor_cols = df_station.filter(regex='^(met_|cro_)').columns
         df_stn_clean = df_station.dropna(subset=predictor_cols)
 
+        # Take only a fraction of the data
+        df_stn_clean = df_stn_clean.iloc[:int(len(df_stn_clean) * (1 - cfg.drop_data))]
+
         # If in temporal split mode, append the split index to the dataframe
-        if cfg.temporal_split:
+        if cfg.temporal_split and (station_name in cfg.trn_stn):
             df_stn_clean['temporal_split'] = 0
             split_dates_stn = split_dates.loc[station_name]
             for i, (start_date, end_date) in enumerate(zip(split_dates_stn['tst_start_date'],
@@ -52,9 +55,6 @@ def forward_simulation():
             model_list = dict_models[mode]
             df_station_X = df_stn_clean.filter(regex=mode_vars['predictors'])
 
-            # Take only a fraction of the data
-            df_station_X = df_station_X.iloc[:int(len(df_station_X) * (1 - cfg.drop_data))]
-
             # Get the number of rows in the dataframe
             n_rows = len(df_station_X)
 
@@ -68,7 +68,7 @@ def forward_simulation():
                     print(f"Progress: {progress_pct:.0f}% completed.")
 
                 # Decide which model to use
-                if not cfg.temporal_split:
+                if (not cfg.temporal_split) or (station_name not in cfg.trn_stn):
                     model = model_list[0]
                 else:
                     model = model_list[df_stn_clean.loc[df_index, 'temporal_split']]

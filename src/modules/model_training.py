@@ -64,10 +64,6 @@ def model_training():
             suffix = f'temp_split_{s}' if cfg.temporal_split else ''
             model.save_model(suffix=suffix)
 
-            # Take the test data for direct prediction
-            X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-            y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
-
             # Predict the delta SWE for the training and test data
             y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
             y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
@@ -236,22 +232,21 @@ def temporal_test_split(X, y, split_idx):
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_tst, y_tst = [], [], [], []
 
-    for station in cfg.trn_stn:
+    for i, station in enumerate(cfg.trn_stn):
 
         # Retrieve the split dates for the current station and split
-        trn_val_split_date, val_tst_split_date, tst_trn_split_date = \
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
             df_split_dates.loc[(station, split_idx)].values
         
         # Filter the trn and tst data conditions for the current station and split
-        trn_cond = (X[station].index < val_tst_split_date) | \
-                   (X[station].index >= tst_trn_split_date)
-        tst_cond = (X[station].index >= val_tst_split_date) & \
-                   (X[station].index < tst_trn_split_date)
-
+        trn_cond = (X[i].index < tst_start_date) | \
+                   (X[i].index >= tst_end_date)
+        tst_cond = (X[i].index >= tst_start_date) & \
+                   (X[i].index < tst_end_date)
         # Append the training and test data
-        X_trn.append(X[station].loc[trn_cond])
-        y_trn.append(y[station].loc[trn_cond])
-        X_tst.append(X[station].loc[tst_cond])
-        y_tst.append(y[station].loc[tst_cond])          
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_tst.append(X[i].loc[tst_cond])
+        y_tst.append(y[i].loc[tst_cond])          
 
     return X_trn, X_tst, y_trn, y_tst
