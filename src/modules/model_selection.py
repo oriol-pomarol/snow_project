@@ -62,23 +62,8 @@ def model_selection():
 
 def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):    
 
-    # Set the hyperparameters for each model type
-    rf_hps = {'max_depth': [None, 10, 20],
-              'max_samples': [None, 0.5, 0.8]}
-    nn_hps = {'layers': [[2048], [128, 128, 128]],
-              'learning_rate': [1e-3, 1e-5],
-              'l2_reg': [0, 1e-2, 1e-4]}
-    lstm_hps = {'layers': [[512], [128, 64]],
-                'learning_rate': [1e-3, 1e-5],
-                'l2_reg': [0, 1e-2, 1e-4]}
-    epochs = [10, 50, 100]
-
     # Initialize a model for each model type and HP combination
-    models = []
-    models += initialize_models(mode, 'rf', rf_hps)
-    models += initialize_models(mode, 'nn', nn_hps, epochs)
-    if cfg.lag > 0:
-        models += initialize_models(mode, 'lstm', lstm_hps, epochs)
+    models = initialize_models(mode)
 
     # Initialize losses for model validation
     n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
@@ -134,27 +119,39 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
 ###############################################################################
 
-def initialize_models(mode, model_type, hp_vals_dict, epochs=None):
+def initialize_models(mode):
     
     # Initialize a list of models
     models = []
 
-    # Create a list of HP names and all possible HP combinations
-    hp_names = list(hp_vals_dict.keys())
-    hp_vals = itertools.product(*hp_vals_dict.values())
+    # Loop over each model type
+    for model_type in ['rf', 'nn', 'lstm']:
 
-    # Iterate over each HP combination
-    for hp_val_combination in hp_vals:
+        # Get the hyperparameters for the model type
+        hp_vals_dict = cfg.hyperparameters(model_type)
 
-        # Create a dictionary with each HP combination and names
-        hp_combination = dict(zip(hp_names, hp_val_combination))
+        # Set the epochs for the model
+        if model_type == 'rf':
+            epochs = None
+        else:
+            epochs = cfg.epochs
 
-        # Create a model with the HP combination
-        model = Model(mode)
-        model.set_hps(model_type, hp_combination, epochs)
+        # Create a list of HP names and all possible HP combinations
+        hp_names = list(hp_vals_dict.keys())
+        hp_vals = itertools.product(*hp_vals_dict.values())
 
-        # Append the model to the list
-        models.append(model)
+        # Iterate over each HP combination
+        for hp_val_combination in hp_vals:
+
+            # Create a dictionary with each HP combination and names
+            hp_combination = dict(zip(hp_names, hp_val_combination))
+
+            # Create a model with the HP combination
+            model = Model(mode)
+            model.set_hps(model_type, hp_combination, epochs)
+
+            # Append the model to the list
+            models.append(model)
 
     return models
 

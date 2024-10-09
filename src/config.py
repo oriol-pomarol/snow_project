@@ -5,6 +5,7 @@ from pathlib import Path
 class cfg:
     lag: int = 14
     temporal_split: bool = True
+    epochs = [10, 50, 100]
     n_temporal_splits: int = 5
     val_ratio: float = 0.15
     rel_weight: float = 1
@@ -26,13 +27,35 @@ class cfg:
     drop_data: float = 0.6
     station_years: tuple = ()
 
-
+    # Define the modes and the corresponding predictors and target
     def modes():
         return {
     "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
     "err_corr": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
     "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
     }
+
+    # Set the hyperparameters for each model type
+    def hyperparameters(model_type):
+        if model_type == 'rf':
+            return {
+                'max_depth': [None, 10, 20],
+                'max_samples': [None, 0.5, 0.8]
+                }
+        elif model_type == 'nn':
+            return {
+                'layers': [[2048], [128, 128, 128]],
+                'learning_rate': [1e-3, 1e-5],
+                'l2_reg': [0, 1e-2, 1e-4]
+                }
+        elif model_type == 'lstm':
+            return {
+                'layers': [[512], [128, 64]],
+                'learning_rate': [1e-3, 1e-5],
+                'l2_reg': [0, 1e-2, 1e-4]
+                }   
+        else:
+            raise ValueError(f"Model type {model_type} not recognized.")
     
     def __post_init__(self):
         # Check that all stations are in station_names
