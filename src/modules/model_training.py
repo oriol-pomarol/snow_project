@@ -45,10 +45,18 @@ def model_training():
         X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
         y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
 
-        # Train the model
-        for i in range(len(tst_dfs)) if mode == 'data_aug' else range(1):
+        # Define whether to perform data augmentation cross-validation
+        aug_cross_val = (mode == 'data_aug') and (not cfg.temporal_split)
 
-            if mode == 'data_aug':
+        # Generate dataframes to store the predictions
+        df_trn = pd.DataFrame(columns=['y_trn', 'y_trn_pred', 'split'])
+        df_tst = pd.DataFrame(columns=['y_tst', 'y_tst_pred', 'split'])
+        if aug_cross_val:
+            df_aug = pd.DataFrame(columns=['y_aug', 'y_aug_pred', 'split'])
+
+        for i in range(len(tst_dfs)) if aug_cross_val else range(1):
+
+            if aug_cross_val:
                 # Select all but one station for augmentation
                 X_aug = [df.filter(regex='^met_') for j, df in \
                             enumerate(aug_dfs) if j != i]
@@ -86,9 +94,25 @@ def model_training():
             y_train = pd.concat(y_obs).values.ravel()
             y_tst = pd.concat(y_tst).values.ravel()
 
-            # Make a plot vs true plot
-            plot_pred_vs_true(mode, y_train, y_train_pred,
-                            y_tst, y_tst_pred, y_aug, y_aug_pred)
+            # Concatenate the values into the corresponding dataframes
+            df_trn = pd.concat([df_trn, pd.DataFrame({'y_trn': y_train,
+                                                      'y_trn_pred': y_train_pred,
+                                                      'split': i})])
+            df_tst = pd.concat([df_tst, pd.DataFrame({'y_tst': y_tst,
+                                                      'y_tst_pred': y_tst_pred,
+                                                      'split': i})])
+            if aug_cross_val:
+                df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug,
+                                                          'y_aug_pred': y_aug_pred,
+                                                          'split': i})])
+        # Save the dataframes
+        df_trn.to_csv(paths.outputs / f'pred_vs_true_{mode}_trn.csv', index=False)
+        df_tst.to_csv(paths.outputs / f'pred_vs_true_{mode}_tst.csv', index=False)
+        if aug_cross_val:
+            df_aug.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+
+        # Make a plot vs true plot
+        plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
         
         print(f'{mode} trained successfully...')
 
@@ -139,8 +163,17 @@ def train_model(X, y, X_aug, y_aug, mode):
 
 ###############################################################################
 
-def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
-                      y_aug=None, y_aug_pred=None):
+def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):
+
+    # Extract the true and predicted values
+    y_train = df_trn['y_trn']
+    y_train_pred = df_trn['y_trn_pred']
+    y_test = df_tst['y_tst']
+    y_test_pred = df_tst['y_tst_pred']
+
+    if mode == 'data_aug':
+        y_aug = df_aug['y_aug']
+        y_aug_pred = df_aug['y_aug_pred']
 
     # Create scatter plot for training data
     fig = plt.figure(figsize=(12, 7))
@@ -209,17 +242,5 @@ def plot_pred_vs_true(mode, y_train, y_train_pred, y_test, y_test_pred,
 
     plt.tight_layout()
     plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
-
-    # Save the true and predicted values as csv
-    train_df = pd.DataFrame({'TrueValues': y_train, 'PredictedValues': y_train_pred})
-    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
-
-    if mode == 'data_aug':
-        aug_df = pd.DataFrame({'TrueValues': y_aug, 'PredictedValues': y_aug_pred})
-        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
-
-    # Save the true and predicted values as csv
-    test_df = pd.DataFrame({'TrueValues': y_test, 'PredictedValues': y_test_pred})
-    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
-
+    
     return
