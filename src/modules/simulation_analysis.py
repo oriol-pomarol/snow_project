@@ -5,12 +5,14 @@ from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
 from config import cfg, paths
 
-def simulation_analysis(station_years=[]):
+def simulation_analysis():
 
     if cfg.temporal_split:
-        # Load the train/test into a dictionary
-        df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=0)
-        dict_split_dates = {index: row[0] for index, row in df_split_dates.iterrows()}
+        # Load the split dates
+        df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+
+        # Convert all columns to a datetime format
+        df_split_dates = df_split_dates.apply(pd.to_datetime)
 
     # Load the true and simulated snow data for each station
     dict_dfs = {}
@@ -43,26 +45,31 @@ def simulation_analysis(station_years=[]):
         # Clean the data
         df_station_clean = dict_dfs[station_name].dropna()
 
-        if cfg.temporal_split and station_name in dict_split_dates:
-            # Split the data into training and testing sets
-            split_date = dict_split_dates[station_name]
-            df_train = mask_measurements_by_year(df_station_clean, 'train', split_date)
-            df_test = mask_measurements_by_year(df_station_clean, 'test', split_date)
-        
-            # Calculate the nNSE for the training set and append it to the df
-            obs_swe_train = df_train['obs_swe']
-            nnse_train = [calculate_nNSE(obs_swe_train, df_train[mode]) for mode in sim_modes]
-            df_nnse.loc[station_name + '_train'] = nnse_train
+        if cfg.temporal_split and (station_name in cfg.trn_stn):
+
+            # Find the start and end dates for the testing set
+            tst_start_date = df_split_dates.loc[(station_name, 0), 'tst_start_date']
+            tst_end_date = df_split_dates.loc[(station_name, 0), 'tst_end_date']
+            split_dates = tst_start_date, tst_end_date
+
+            # Mask the measurements by testing sets
+            df_test = mask_measurements_by_year(df_station_clean, 'test', split_dates)
             
             # Calculate the nNSE for the testing set and append it to the df
             obs_swe_test = df_test['obs_swe']
             nnse_test = [calculate_nNSE(obs_swe_test, df_test[mode]) for mode in sim_modes]
-            df_nnse.loc[station_name + '_test'] = nnse_test
+            df_nnse.loc[station_name] = nnse_test
         
         else:
             # Calculate the nNSE of the whole station and append it to the df
             obs_swe_train = df_station_clean['obs_swe']
-            nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
+            
+            if len(obs_swe_train) == 0:
+                nnse_train = [float('nan')] * len(sim_modes)
+                print(f"Warning: No observations available for evaluating station {station_name}.")
+            else:
+                nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
+            
             df_nnse.loc[station_name] = nnse_train
 
     # Save the nNSE as csv
@@ -70,7 +77,7 @@ def simulation_analysis(station_years=[]):
 
     # Plot the results
     print('Plotting the results...')  
-    for station_year in station_years:
+    for station_year in cfg.station_years:
 
         station_name, year = station_year.split("_")
 
@@ -94,24 +101,32 @@ def simulation_analysis(station_years=[]):
             # Get the axis
             ax = axs[station_idx]
 
-            # Mask the measurements and find the number of data points
+            # Get the split dates if temporal split is enabled
             if cfg.temporal_split:
-                split_date = dict_split_dates[station_name]
+                tst_start_date = df_split_dates.loc[(station_name, 0), 'tst_start_date']
+                tst_end_date = df_split_dates.loc[(station_name, 0), 'tst_end_date']
+                split_dates = tst_start_date, tst_end_date
             else:
-                split_date = None
-            df_masked = mask_measurements_by_year(df_station, year, split_date)
+                split_dates = None
+
+            # Mask the measurements and find the number of data points
+            df_masked = mask_measurements_by_year(df_station, year, split_dates)
             df_masked_clean = df_masked.dropna()
             num_data_points = df_masked_clean['obs_swe'].count()
 
             # Plot the observed SWE and calculate the nNSE
             for column_name in df_masked.columns:
-                nNSE = calculate_nNSE(df_masked_clean["obs_swe"] ,
-                                      df_masked_clean[column_name])
+                if len(df_masked_clean["obs_swe"]) == 0:
+                    nNSE = float('nan')
+                    print(f"Warning: No observations available for station_year = {station_year}.")
+                else:
+                    nNSE = calculate_nNSE(df_masked_clean["obs_swe"],
+                                          df_masked_clean[column_name])
                 clean_column = df_masked[column_name].dropna()                
                 ax.plot(clean_column.index, clean_column,
                         label=f'{column_name} (nNSE: {nNSE:.2f})')
 
-            # Create the  legend
+            # Create the legend
             ax.legend(fontsize='large')
             handles, labels = ax.get_legend_handles_labels()
             handles.append(Line2D([0], [0], marker='None', color='white', label=f'Data points: {num_data_points}'))
@@ -127,16 +142,18 @@ def simulation_analysis(station_years=[]):
 # EXTRA FUNCTIONS
 ###############################################################################
 
-def mask_measurements_by_year(df, year, split_date=None):
+def mask_measurements_by_year(df, year, split_dates=None):
 
-    if year == 'all':
+    # If the dataframe is empty or the year is 'all', return the dataframe
+    if (len(df) == 0) or (year == 'all'):
         return df
-    
+
+    # If the year is 'train', 'test', or a specific year, mask the data
     elif year == 'train':
-        mask = (df.index < split_date)
+        mask = (df.index < split_dates[0]) | (df.index >= split_dates[1])
 
     elif year == 'test':
-        mask = (df.index >= split_date)
+        mask = (df.index >= split_dates[0]) & (df.index < split_dates[1])
 
     elif year.isdigit():
         year = int(year)
@@ -150,6 +167,13 @@ def mask_measurements_by_year(df, year, split_date=None):
     return df[mask]
     
 def calculate_nNSE(observed, predicted):
+
+    # Return NaN if there are no observations
+    if len(observed) < 2:
+        return float('nan')
+    
+    # Calculate the nNSE
     mse = mean_squared_error(observed, predicted)
     nNSE = 1 / (2 - (1 - mse / np.var(observed)))
+
     return nNSE

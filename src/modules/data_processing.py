@@ -66,10 +66,7 @@ def data_processing():
         df_data["delta_mod_swe"] = df_data["mod_swe"].diff().shift(-1)
 
         # Create new column representing the crocus-observed error
-        df_data["res_mod_swe"] = df_data["mod_swe"] - df_data["obs_swe"]
-
-        # Drop a percentage of the data
-        df_data = df_data.iloc[: int(len(df_data) * (1-cfg.drop_data))]
+        df_data["res_mod_swe"] = df_data["delta_mod_swe"] - df_data["delta_obs_swe"]      
 
         # Save the DataFrame
         df_data.to_csv(paths.proc_data / f"df_{station_name}_lag_{cfg.lag}.csv")

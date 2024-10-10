@@ -1,6 +1,7 @@
 import joblib
 import json
 import tensorflow as tf
+import numpy as np
 from tensorflow import keras
 from keras.callbacks import Callback
 from sklearn.ensemble import RandomForestRegressor
@@ -93,10 +94,10 @@ class Model:
             path_dir = paths.models
         model_name = '_'.join([self.mode, suffix]) if suffix else self.mode
         if self.model_type == 'rf':
-            joblib.dump(self.model, path_dir/ f'{model_name}.joblib')
+            joblib.dump(self.model, path_dir / f'{model_name}.joblib')
         else:
             self.model.save(path_dir / f'{model_name}.h5')
-
+    
     def load_model(self, path_dir=None, suffix=''):
         if path_dir is None:
             path_dir = paths.models
@@ -107,6 +108,17 @@ class Model:
             self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
 
     def fit(self, X, y, **kwargs):
+
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100:
+            mask = np.random.rand(len(X)) > cfg.drop_data
+            X = X[mask]
+            y = y[mask]
+
+            # If sample_weight is provided, drop the corresponding samples
+            sample_weight = kwargs.get('sample_weight')
+            if sample_weight is not None:
+                kwargs['sample_weight'] = kwargs['sample_weight'][mask]
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
@@ -128,12 +140,26 @@ class Model:
             return None
 
     def predict(self, X):
+
+        # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
-        y_pred = self.model.predict(X)
+
+        # Predict the data; if it is not a random forest set the verbose to 0
+        if self.model_type == 'rf':
+            y_pred = self.model.predict(X)
+        else:
+            y_pred = self.model.predict(X, verbose=0)
         return y_pred
 
     def test(self, X, y):
+
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100:
+            mask = np.random.rand(len(X)) > cfg.drop_data
+            X = X[mask]
+            y = y[mask]
+
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)
         if type(self.model) == dict:
@@ -190,7 +216,7 @@ class SaveModelAtEpoch(Callback):
             model_copy = tf.keras.models.clone_model(self.model)
             model_copy.set_weights(self.model.get_weights())
             self.saved_models[epoch + 1] = model_copy # Save the model copy and epoch
-            print(f"Model saved at epoch {epoch + 1}")
+            print(f"\n\nModel saved at epoch {epoch + 1}\n")
 
     def get_saved_models(self):
         return self.saved_models

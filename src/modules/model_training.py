@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
@@ -9,7 +8,6 @@ from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
-    temporal_data_split,
     data_aug_split
 )
 
@@ -20,97 +18,99 @@ def model_training():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
-    aug_dfs = [all_dfs[station].dropna() for station in cfg.aug_stn]
+    aug_dfs = [dropna_aug(all_dfs[stn]) for stn in cfg.aug_stn]
+    tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
     aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
+    tst_dfs = [df.query('delta_obs_swe != -obs_swe') for df in tst_dfs]
     
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
-    # Define the test data
-    if cfg.temporal_split:
-        trn_dfs, tst_dfs = temporal_data_split(trn_dfs)
-
-    else:
-        tst_dfs = [all_dfs[station] for station in cfg.tst_stn]
-
     for mode, mode_vars in cfg.modes().items():
-    
-        # Train the best model for the direct prediction setup
         print(f'Starting {mode} training...')
-        
-        # Take the corresponding predictor and target variables
-        X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-        y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+                    
+        # Define the number of cross validation splits, with default 1
+        n_splits = 1
 
-        # Define whether to perform data augmentation cross-validation
-        aug_cross_val = (mode == 'data_aug') and (not cfg.temporal_split)
+        # If in temporal mode, use the number of temporal splits
+        if cfg.temporal_split:
+            n_splits = cfg.n_temporal_splits
 
-        # Generate dataframes to store the predictions
+        # If in data augmentation mode, use the number of test stations
+        elif mode == 'data_aug':
+            n_splits = len(cfg.tst_stn)
+
+        # Initialize a df to store the predictions
         df_trn = pd.DataFrame(columns=['y_trn', 'y_trn_pred', 'split'])
         df_tst = pd.DataFrame(columns=['y_tst', 'y_tst_pred', 'split'])
-        if aug_cross_val:
-            df_aug = pd.DataFrame(columns=['y_aug', 'y_aug_pred', 'split'])
+        df_aug = pd.DataFrame(columns=['y_aug', 'y_aug_pred', 'split'])
 
-        for i in range(len(tst_dfs)) if aug_cross_val else range(1):
+        for s in range(n_splits):
+            print(f'Starting split {s+1} of {n_splits}...')
+            
+            # Take the corresponding predictor and target variables
+            X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
+            y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
 
-            if aug_cross_val:
-                # Select all but one station for augmentation
-                X_aug = [df.filter(regex='^met_') for j, df in \
-                            enumerate(aug_dfs) if j != i]
-                y_aug = [df[['delta_mod_swe']] for j, df in \
-                            enumerate(aug_dfs) if j != i]
-                
-                # Select the one station for testing
-                X_tst = tst_dfs[i].filter(regex=mode_vars['predictors'])
-                y_tst = tst_dfs[i][[mode_vars['target']]]
-
+            # Split the data into training and test sets
+            if cfg.temporal_split:
+                X_trn, X_tst, y_trn, y_tst = temporal_test_split(X_obs, y_obs, s)
+                suffix = f'temp_split_{s}'
             else:
-                # No data augmentation
-                X_aug, y_aug = None, None
+                X_trn, y_trn = X_obs, y_obs
+                if mode == 'data_aug':
+                    X_tst = tst_dfs[s].filter(regex=mode_vars['predictors'])
+                    y_tst = tst_dfs[s][[mode_vars['target']]]
+                    suffix = f'aug_split_{s}'
 
-                # Select all stations for testing
-                X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-                y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+                else:
+                    X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
+                    y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+                    suffix = ''
+
+            # Take the augmented data if in the corresponding mode
+            X_aug, y_aug = None, None
+            if mode == 'data_aug':
+                if cfg.temporal_split:
+                    X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+                    y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+                else:
+                    X_aug = [df.filter(regex='^met_') for i, df in enumerate(aug_dfs) if i != s]
+                    y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
+
             
             # Train the model
-            model = train_model(X_obs, y_obs, X_aug, y_aug, mode = mode)
-            model.save_model(suffix=f'aug_split_{i}' if mode == 'data_aug' else '')
+            model = train_model(X_trn, y_trn, X_aug, y_aug, mode = mode)
+            model.save_model(suffix=suffix)
 
             # Predict the delta SWE for the training and test data
-            y_train_pred = model.predict(pd.concat(X_obs)).ravel()
+            y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
             y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
                 y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
                 y_aug = pd.concat(y_aug).values.ravel()
-            else:
-                y_aug_pred = None
 
             # Concatenate the observed values and convert to 1D numpy array
-            y_train = pd.concat(y_obs).values.ravel()
+            y_trn = pd.concat(y_obs).values.ravel()
             y_tst = pd.concat(y_tst).values.ravel()
 
-            # Concatenate the values into the corresponding dataframes
-            df_trn = pd.concat([df_trn, pd.DataFrame({'y_trn': y_train,
-                                                      'y_trn_pred': y_train_pred,
-                                                      'split': i})])
-            df_tst = pd.concat([df_tst, pd.DataFrame({'y_tst': y_tst,
-                                                      'y_tst_pred': y_tst_pred,
-                                                      'split': i})])
-            if aug_cross_val:
-                df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug,
-                                                          'y_aug_pred': y_aug_pred,
-                                                          'split': i})])
-        # Save the dataframes
-        df_trn.to_csv(paths.outputs / f'pred_vs_true_{mode}_trn.csv', index=False)
-        df_tst.to_csv(paths.outputs / f'pred_vs_true_{mode}_tst.csv', index=False)
-        if aug_cross_val:
-            df_aug.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+            # Append the predictions to the dataframes
+            df_trn = pd.concat([df_trn, pd.DataFrame({'y_trn': y_trn, 'y_trn_pred': y_trn_pred, 'split': s})], ignore_index=True)
+            df_tst = pd.concat([df_tst, pd.DataFrame({'y_tst': y_tst, 'y_tst_pred': y_tst_pred, 'split': s})], ignore_index=True)
+            if mode == 'data_aug':
+                df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug, 'y_aug_pred': y_aug_pred, 'split': s})], ignore_index=True)
 
+        # Save the dataframes
+        df_trn.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
+        df_tst.to_csv(paths.outputs / f'pred_vs_true_tst_{mode}.csv', index=False)
+        if mode == 'data_aug':
+            df_aug.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+        
         # Make a plot vs true plot
         plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
         
@@ -242,5 +242,54 @@ def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):
 
     plt.tight_layout()
     plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
-    
+
+    # Save the true and predicted values as csv
+    train_df = pd.DataFrame({'TrueValues': y_train, 'PredictedValues': y_train_pred})
+    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
+
+    if mode == 'data_aug':
+        aug_df = pd.DataFrame({'TrueValues': y_aug, 'PredictedValues': y_aug_pred})
+        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+
+    # Save the true and predicted values as csv
+    test_df = pd.DataFrame({'TrueValues': y_test, 'PredictedValues': y_test_pred})
+    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
+
     return
+
+###############################################################################
+
+def temporal_test_split(X, y, split_idx):
+
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_tst, y_tst = [], [], [], []
+
+    for i, station in enumerate(cfg.trn_stn):
+
+        # Retrieve the split dates for the current station and split
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Filter the trn and tst data conditions for the current station and split
+        trn_cond = (X[i].index < tst_start_date) | \
+                   (X[i].index >= tst_end_date)
+        tst_cond = (X[i].index >= tst_start_date) & \
+                   (X[i].index < tst_end_date)
+        # Append the training and test data
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_tst.append(X[i].loc[tst_cond])
+        y_tst.append(y[i].loc[tst_cond])          
+
+    return X_trn, X_tst, y_trn, y_tst
+
+###############################################################################
+
+def dropna_aug(aug_df):
+    ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
+    dropna_cols = [col for col in aug_df.columns if col not in ignore_cols]
+    clean_df = aug_df.dropna(subset=dropna_cols)
+    return clean_df

@@ -31,7 +31,7 @@ print('Successfully performed forward simulation...')
 
 # Analyze the simulation results
 print('Analyzing simulation results...')
-simulation_analysis(station_years=[])
+simulation_analysis()
 print('Successfully analyzed simulation results...')
 
 # Print execution time

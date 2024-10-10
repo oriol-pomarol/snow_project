@@ -6,7 +6,7 @@ from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
-    temporal_data_split,
+    find_temporal_split_dates,
     data_aug_split,
 )
 
@@ -17,7 +17,7 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    ignore_cols = ["delta_obs_swe", "obs_swe"]
+    ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
     dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
     aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
 
@@ -28,9 +28,9 @@ def model_selection():
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
-    # Define the training data in case of a temporal split
+    # Find the dates for the temporal split
     if cfg.temporal_split:
-        trn_dfs, _ = temporal_data_split(trn_dfs)
+        find_temporal_split_dates(trn_dfs)
 
     for mode, mode_vars in cfg.modes().items():
     
@@ -62,26 +62,11 @@ def model_selection():
 
 def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):    
 
-    # Set the hyperparameters for each model type
-    rf_hps = {'max_depth': [None, 10, 20],
-              'max_samples': [None, 0.5, 0.8]}
-    nn_hps = {'layers': [[2048], [128, 128, 128]],
-              'learning_rate': [1e-3, 1e-5],
-              'l2_reg': [0, 1e-2, 1e-4]}
-    lstm_hps = {'layers': [[512], [128, 64]],
-                'learning_rate': [1e-3, 1e-5],
-                'l2_reg': [0, 1e-2, 1e-4]}
-    epochs = [10, 50, 100]
-
     # Initialize a model for each model type and HP combination
-    models = []
-    models += initialize_models(mode, 'rf', rf_hps)
-    models += initialize_models(mode, 'nn', nn_hps, epochs)
-    if cfg.lag > 0:
-        models += initialize_models(mode, 'lstm', lstm_hps, epochs)
+    models = initialize_models(mode)
 
     # Initialize losses for model validation
-    n_splits = 1 if cfg.temporal_split else len(X)
+    n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
     losses = np.zeros((len(models), n_splits))
 
     # Iterate over each split
@@ -90,10 +75,10 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         # Obtain the training, validation and test data
         if cfg.temporal_split:
             X_trn, X_tst, y_trn, y_tst = \
-                temporal_split(X, y, s)
+                temporal_validation_split(X, y, s)
         else:
             X_trn, X_tst, y_trn, y_tst = \
-                station_split(X, y, s)
+                station_validation_split(X, y, s)
 
         # Add the augmented data if in the corresponding mode
         if mode == 'data_aug':
@@ -134,33 +119,45 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
 ###############################################################################
 
-def initialize_models(mode, model_type, hp_vals_dict, epochs=None):
+def initialize_models(mode):
     
     # Initialize a list of models
     models = []
 
-    # Create a list of HP names and all possible HP combinations
-    hp_names = list(hp_vals_dict.keys())
-    hp_vals = itertools.product(*hp_vals_dict.values())
+    # Loop over each model type
+    for model_type in ['rf', 'nn', 'lstm']:
 
-    # Iterate over each HP combination
-    for hp_val_combination in hp_vals:
+        # Get the hyperparameters for the model type
+        hp_vals_dict = cfg.hyperparameters(model_type)
 
-        # Create a dictionary with each HP combination and names
-        hp_combination = dict(zip(hp_names, hp_val_combination))
+        # Set the epochs for the model
+        if model_type == 'rf':
+            epochs = None
+        else:
+            epochs = cfg.epochs
 
-        # Create a model with the HP combination
-        model = Model(mode)
-        model.set_hps(model_type, hp_combination, epochs)
+        # Create a list of HP names and all possible HP combinations
+        hp_names = list(hp_vals_dict.keys())
+        hp_vals = itertools.product(*hp_vals_dict.values())
 
-        # Append the model to the list
-        models.append(model)
+        # Iterate over each HP combination
+        for hp_val_combination in hp_vals:
+
+            # Create a dictionary with each HP combination and names
+            hp_combination = dict(zip(hp_names, hp_val_combination))
+
+            # Create a model with the HP combination
+            model = Model(mode)
+            model.set_hps(model_type, hp_combination, epochs)
+
+            # Append the model to the list
+            models.append(model)
 
     return models
 
 ###############################################################################
 
-def station_split(X, y, i):
+def station_validation_split(X, y, i):
 
     # Take one station for testing
     X_tst = X[i]
@@ -174,14 +171,37 @@ def station_split(X, y, i):
 
 ###############################################################################
 
-def temporal_split(X, y, i):
+def temporal_validation_split(X, y, split_idx):
 
-    # Select the last 20% of each station's data for testing
-    X_tst = pd.concat([X[j].tail(int(0.2*len(X[j]))) for j in range(len(X))])
-    y_tst = pd.concat([y[j].tail(int(0.2*len(y[j]))) for j in range(len(y))])
-    
-    # Select the remaining data for training
-    X_trn = pd.concat([X[j].head(int(0.8*len(X[j]))) for j in range(len(X))])
-    y_trn = pd.concat([y[j].head(int(0.8*len(y[j]))) for j in range(len(y))])
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
 
-    return X_trn, X_tst, y_trn, y_tst
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_val, y_val = [], [], [], []
+
+    for i, station in enumerate(cfg.trn_stn):
+
+        # Retrieve the split dates for the current station and split
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Filter the trn and val data conditions for the current station and split
+        trn_cond = ((X[i].index < tst_start_date) | \
+                    (X[i].index >= tst_end_date)) & \
+                   ((X[i].index < val_start_date) | \
+                    (X[i].index >= val_end_date))
+     
+        val_cond = (X[i].index >= val_start_date) & \
+                   (X[i].index < val_end_date)
+
+        # Append the training and validation data
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_val.append(X[i].loc[val_cond])
+        y_val.append(y[i].loc[val_cond])        
+
+    # Concatenate the training and validation data
+    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
+    X_val, y_val = pd.concat(X_val), pd.concat(y_val)
+
+    return X_trn, X_val, y_trn, y_val
