@@ -105,10 +105,10 @@ def model_training():
                 df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug, 'y_aug_pred': y_aug_pred, 'split': s})], ignore_index=True)
 
         # Save the dataframes
-        df_trn.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
-        df_tst.to_csv(paths.outputs / f'pred_vs_true_tst_{mode}.csv', index=False)
+        df_trn.to_csv(paths.temp_data / f'pred_vs_true_{mode}.csv', index=False)
+        df_tst.to_csv(paths.temp_data / f'pred_vs_true_tst_{mode}.csv', index=False)
         if mode == 'data_aug':
-            df_aug.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
+            df_aug.to_csv(paths.temp_data / f'pred_vs_true_{mode}_aug.csv', index=False)
         
         # Make a plot vs true plot
         plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
@@ -147,7 +147,7 @@ def train_model(X, y, X_aug, y_aug, mode):
 
         # Save the training history
         history_df = pd.DataFrame(history.history)
-        history_df.to_csv(paths.outputs / f'train_history_{mode}.csv')
+        history_df.to_csv(paths.temp_data / f'train_history_{mode}.csv')
                           
         # Plot the MSE history of the training
         plt.figure()
@@ -241,18 +241,6 @@ def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):
 
     plt.tight_layout()
     plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
-
-    # Save the true and predicted values as csv
-    train_df = pd.DataFrame({'TrueValues': y_train, 'PredictedValues': y_train_pred})
-    train_df.to_csv(paths.outputs / f'pred_vs_true_{mode}.csv', index=False)
-
-    if mode == 'data_aug':
-        aug_df = pd.DataFrame({'TrueValues': y_aug, 'PredictedValues': y_aug_pred})
-        aug_df.to_csv(paths.outputs / f'pred_vs_true_{mode}_aug.csv', index=False)
-
-    # Save the true and predicted values as csv
-    test_df = pd.DataFrame({'TrueValues': y_test, 'PredictedValues': y_test_pred})
-    test_df.to_csv(paths.outputs / f'pred_vs_true_test_{mode}.csv', index=False)
 
     return
 
