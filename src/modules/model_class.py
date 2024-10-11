@@ -126,12 +126,10 @@ class Model:
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
-            save_model_callback = SaveModelAtEpoch(self.epochs)
-            history = self.model.fit(X, y, epochs=max(self.epochs),
-                                     callbacks=[save_model_callback],
-                                     **kwargs)
+            callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
+            history = self.model.fit(X, y, epochs=max(self.epochs), callbacks=callbacks, **kwargs)
             if len(self.epochs) > 1:
-                self.model = save_model_callback.get_saved_models()
+                self.model = callbacks[0].get_saved_models()
             return history
         
         # Fit the data with sklearn if it is a random forest
@@ -219,7 +217,7 @@ class SaveModelAtEpoch(Callback):
             # Clone the model and store it
             model_copy = tf.keras.models.clone_model(self.model)
             model_copy.set_weights(self.model.get_weights())
-            self.saved_models[epoch + 1] = model_copy # Save the model copy and epoch
+            self.saved_models[epoch + 1] = model_copy
             print(f"\n\nModel saved at epoch {epoch + 1}\n")
 
     def get_saved_models(self):
