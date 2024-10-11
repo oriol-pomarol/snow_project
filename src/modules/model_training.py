@@ -62,8 +62,8 @@ def model_training():
             else:
                 X_trn, y_trn = X_obs, y_obs
                 if mode == 'data_aug':
-                    X_tst = tst_dfs[s].filter(regex=mode_vars['predictors'])
-                    y_tst = tst_dfs[s][[mode_vars['target']]]
+                    X_tst = [tst_dfs[s].filter(regex=mode_vars['predictors']),]
+                    y_tst = [tst_dfs[s][[mode_vars['target']]],]
                     suffix = f'aug_split_{s}'
 
                 else:
@@ -80,7 +80,6 @@ def model_training():
                 else:
                     X_aug = [df.filter(regex='^met_') for i, df in enumerate(aug_dfs) if i != s]
                     y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
-
             
             # Train the model
             model = train_model(X_trn, y_trn, X_aug, y_aug, mode = mode)

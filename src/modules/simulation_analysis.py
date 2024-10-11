@@ -36,7 +36,7 @@ def simulation_analysis():
         dict_dfs[station_name] = df_station
 
     # Create an empty dataframe for the nNSE
-    sim_modes = ['mod_swe', 'dir_pred', 'err_corr', 'data_aug']
+    sim_modes = ['mod_swe'] + list(cfg.modes().keys())
     df_nnse = pd.DataFrame(columns=sim_modes)
 
     # Find the nNSE and store them in the dataframe for each station

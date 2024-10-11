@@ -141,6 +141,10 @@ class Model:
 
     def predict(self, X):
 
+        # If the dataset is empty, return an empty array
+        if len(X) == 0:
+            return np.array([])
+
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X, mode=self.mode)

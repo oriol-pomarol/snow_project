@@ -67,15 +67,16 @@ def forward_simulation():
 
             # Get the correct model if in station split mode
             model_list = dict_models[mode]
-            if not(cfg.temporal_split and (station_name in cfg.trn_stn)):
-                if (mode == 'data_aug') and (station_name in cfg.tst_stn):
-                    # Retrieve index of the station in the test stations
-                    tst_station_idx = cfg.tst_stn.index(station_name)
-                    # Select the model corresponding to the test station
-                    model = model_list[tst_station_idx]
-                else:
-                    # Select the first model in the list
-                    model = model_list[0]
+            model = model_list[0]
+
+            # Check if the conditions are met to use a different model
+            dif_model = (not cfg.temporal_split) and (mode == 'data_aug') \
+                        and (station_name in cfg.tst_stn)
+            
+            # Get the index of the test station and select the corresponding model
+            if dif_model:
+                tst_station_idx = cfg.tst_stn.index(station_name)
+                model = model_list[tst_station_idx]
             
             # Get the predictor data for the corresponding mode
             df_station_X = df_stn_clean.filter(regex=mode_vars['predictors'])
