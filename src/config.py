@@ -3,24 +3,13 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class cfg:
-    lag: int = 14
-    temporal_split: bool = True
-    epochs = [10, 50, 100]
+    lag: tuple = (1, 14, 140)
+    epochs: tuple = (10, 50, 100)
     n_temporal_splits: int = 5
-    val_ratio: float = 0.15
-    rel_weight: float = 1
-    station_names: tuple = (
-        "cdp",
-        "oas",
-        "obs",
-        "ojp",
-        "rme",
-        "sap",
-        "snb",
-        "sod",
-        "swa",
-        "wfj",
-    )
+    val_ratio: float = 1/3
+    rel_weight: tuple = (0.5, 1, 2)
+    station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
+                            "sap", "snb", "sod", "swa", "wfj")
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfj')
     tst_stn: tuple = aug_stn
@@ -31,7 +20,8 @@ class cfg:
     def modes():
         return {
     "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
-    "err_corr": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
+    "err_corr": {"predictors": "^met_", "target": "res_mod_swe"},
+    "cro_vars": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
     "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
     }
 
