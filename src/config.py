@@ -3,17 +3,18 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class cfg:
-    lag: tuple = (1, 14, 140)
-    epochs: tuple = (10, 50, 100)
+    lag: tuple = 1
+    rel_weight: tuple = 1
+    temporal_split: bool = False
     n_temporal_splits: int = 5
     val_ratio: float = 1/3
-    rel_weight: tuple = (0.5, 1, 2)
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfj')
     tst_stn: tuple = aug_stn
-    drop_data: float = 0.6
+    drop_data: float = 0.0
+    epochs: tuple = (10, 50, 100)
     station_years: tuple = ()
 
     # Define the modes and the corresponding predictors and target
