@@ -20,10 +20,14 @@ class cfg:
     # Define the modes and the corresponding predictors and target
     def modes():
         return {
-    "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
-    "err_corr": {"predictors": "^met_", "target": "res_mod_swe"},
-    "cro_vars": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
-    "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
+    "dir_pred": {"predictors": "^met_" + '|^obs_swe$',
+                 "target": "delta_obs_swe"},
+    "err_corr": {"predictors": "^met_" + '|^obs_swe$',
+                 "target": "res_mod_swe"},
+    "cro_vars": {"predictors": "^(met_|cro_)" + '|^obs_swe$',
+                 "target": "res_mod_swe"},
+    "data_aug": {"predictors": "^met_" + '|^obs_swe$',
+                 "target": "delta_obs_swe"},
     }
 
     # Set the hyperparameters for each model type
