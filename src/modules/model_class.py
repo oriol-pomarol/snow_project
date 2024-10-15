@@ -49,12 +49,12 @@ class Model:
             self.model_type = hps_mt.get('model_type')
             self.epochs = hps_mt.get('epochs')
 
-    def create_model(self, input_shape, crocus_shape=0):
+    def create_model(self, meteo_shape, others_shape=0):
         self.model = None  # Clear any existing model
 
         if self.model_type == 'nn':
             self.model = keras.Sequential()
-            self.model.add(keras.layers.Input(shape=input_shape))
+            self.model.add(keras.layers.Input(shape=meteo_shape + others_shape))
             for units in self.hyperparameters.get('layers', [128]):
                 activation = self.hyperparameters.get('activation', 'relu')
                 self.model.add(keras.layers.Dense(units, activation=activation))
@@ -63,7 +63,7 @@ class Model:
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*crocus_shape*(self.mode=='err_corr')) // cfg.lag))
+            sequential_input = keras.layers.Input(shape=(cfg.lag, meteo_shape // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
@@ -72,12 +72,12 @@ class Model:
                     x = keras.layers.LSTM(units, return_sequences=True)(x)
                 else:
                     x = keras.layers.LSTM(units)(x)
-            if self.mode == 'err_corr' and crocus_shape > 0:
-                extra_var_input = keras.layers.Input(shape=(crocus_shape,), name='extra_var_input')
+            if others_shape > 0:
+                extra_var_input = keras.layers.Input(shape=(others_shape,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
             output_layer = keras.layers.Dense(1, activation='linear')(x)
-            if self.mode == 'err_corr' and crocus_shape > 0:
+            if others_shape > 0:
                 self.model = keras.models.Model(inputs=[sequential_input, extra_var_input], outputs=output_layer)
             else:
                 self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
@@ -122,7 +122,7 @@ class Model:
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
@@ -145,7 +145,7 @@ class Model:
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
 
         # Predict the data; if it is not a random forest set the verbose to 0
         if self.model_type == 'rf':
@@ -163,7 +163,7 @@ class Model:
             y = y[mask]
 
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
         if type(self.model) == dict:
             mse = {}
             for epoch, model in self.model.items():

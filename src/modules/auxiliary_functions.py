@@ -24,14 +24,10 @@ def load_processed_data():
 
 ###############################################################################
 
-def preprocess_data_lstm(X, mode):
+def preprocess_data_lstm(X):
 
-    # If in error correction, split the meteorological and crocus data
-    if mode == 'err_corr':
-        X_met = X.filter(regex='^met_').values
-        X_cro = X.filter(regex='^cro_').values
-    else:
-        X_met = X.values
+    # Take the meteorological data
+    X_met = X.filter(regex='^met_').values
 
     # Add extra dimension if the input is 1D
     if X_met.ndim == 1:
@@ -44,10 +40,10 @@ def preprocess_data_lstm(X, mode):
     # Transpose the subarrays to get the desired structure
     output_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
 
-    # If in error correction, return the crocus data as well (if available)
-    if mode == 'err_corr' and X_cro.shape[1] > 0:
-        output_X_cro = np.expand_dims(X_cro, axis=0)
-        return output_X_met, output_X_cro
+    # If there are additional variables, take them
+    X_no_met = X.filter(regex='^(?!met_)').values
+    if X_no_met.shape[1] > 0:
+        return output_X_met, X_no_met
 
     return output_X_met
 
@@ -263,6 +259,7 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug):
 
     # Change the name of the augmented data to the target name
     y_aug = y_aug.rename(columns={y_aug.columns[0] : y_trn.columns[0]})
+    X_aug = X_aug.rename(columns={X_aug.columns[-1] : X_trn.columns[-1]})
     
     # Calculate the training weights of the modelled data
     weight_aug = cfg.rel_weight * len(y_trn) / len(y_aug)

@@ -85,13 +85,18 @@ def forward_simulation():
             n_rows = len(df_station_X)
 
             # Predict each row in the dataframe iteratively
-            for row_idx, (df_index, row_serie) in enumerate(df_station_X.iterrows()):
-                row = row_serie.to_frame().T
+            for row_idx, (df_index, row_serie) in enumerate(df_station_X[:-1].iterrows()):
 
                 # Print progress
                 if row_idx % (n_rows // 5) == 0:
                     progress_pct = row_idx * 100 / n_rows
                     print(f"Progress: {progress_pct:.0f}% completed.")
+
+                # Convert the row to a dataframe
+                row = row_serie.to_frame().T
+
+                # Add the previous SWE value to the row
+                row['obs_swe'] = pred_swe_arr[row_idx, mode_idx]
 
                 # Decide which model to use in temporal split mode
                 if cfg.temporal_split and (station_name in cfg.trn_stn):
@@ -106,10 +111,10 @@ def forward_simulation():
                     pred_dswe = mod_dswe - pred_dswe
 
                 # Ensure that the predicted SWE is non-negative
-                pred_swe = max(pred_swe_arr[row_idx-1, mode_idx] + pred_dswe, 0)
+                pred_swe = max(pred_swe_arr[row_idx, mode_idx] + pred_dswe, 0)
 
                 # Save the predicted SWE
-                pred_swe_arr[row_idx, mode_idx] = pred_swe
+                pred_swe_arr[row_idx + 1, mode_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr, index=df_station_X.index, 

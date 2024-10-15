@@ -75,10 +75,10 @@ def model_training():
             X_aug, y_aug = None, None
             if mode == 'data_aug':
                 if cfg.temporal_split:
-                    X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+                    X_aug = [df.filter(regex='^met_' + '|^mod_swe$') for df in aug_dfs]
                     y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
                 else:
-                    X_aug = [df.filter(regex='^met_') for i, df in enumerate(aug_dfs) if i != s]
+                    X_aug = [df.filter(regex='^met_' + '|^mod_swe$') for i, df in enumerate(aug_dfs) if i != s]
                     y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
             
             # Train the model
@@ -91,7 +91,9 @@ def model_training():
 
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
-                y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                X_aug_df = pd.concat(X_aug)
+                X_aug_df = X_aug_df.rename(columns={X_aug_df.columns[-1] : X_trn[0].columns[-1]})
+                y_aug_pred = model.predict(X_aug_df).ravel()
                 y_aug = pd.concat(y_aug).values.ravel()
 
             # Concatenate the observed values and convert to 1D numpy array
@@ -134,10 +136,14 @@ def train_model(X, y, X_aug, y_aug, mode):
     else:
         sample_weight = None
 
+    # Count the number of meteo and other variables
+    meteo_shape = X_trn.filter(regex='^met_').shape[1]
+    others_shape = X_trn.shape[1] - meteo_shape
+
     # Create a model with the best hyperparameters
     best_model = Model(mode)
     best_model.load_hps()
-    best_model.create_model(X[0].shape[1], 0) # Change 0 to the number of crocus variables
+    best_model.create_model(meteo_shape, others_shape)
 
     # Train the model
     history = best_model.fit(X = X_trn, y = y_trn, sample_weight = sample_weight)
