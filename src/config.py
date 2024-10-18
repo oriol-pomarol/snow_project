@@ -3,8 +3,8 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class cfg:
-    lag: tuple = 1
-    rel_weight: tuple = 1
+    lag: int = 14
+    rel_weight: float = 1
     temporal_split: bool = False
     n_temporal_splits: int = 5
     val_ratio: float = 1/3
@@ -14,7 +14,7 @@ class cfg:
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfj')
     tst_stn: tuple = aug_stn
     drop_data: float = 0.0
-    epochs: tuple = (10, 50, 100)
+    epochs: tuple = (25, 50, 75, 100)
     station_years: tuple = ()
 
     # Define the modes and the corresponding predictors and target
@@ -22,10 +22,10 @@ class cfg:
         return {
     "dir_pred": {"predictors": "^met_" + '|^obs_swe$',
                  "target": "delta_obs_swe"},
-    "err_corr": {"predictors": "^met_" + '|^obs_swe$',
+    "err_corr": {"predictors": "^met_" + '|^obs_swe$' + '|^mod_swe$',
                  "target": "res_mod_swe"},
-    "cro_vars": {"predictors": "^(met_|cro_)" + '|^obs_swe$',
-                 "target": "res_mod_swe"},
+    # "cro_vars": {"predictors": "^(met_|cro_)" + '|^obs_swe$',
+    #              "target": "res_mod_swe"},
     "data_aug": {"predictors": "^met_" + '|^obs_swe$',
                  "target": "delta_obs_swe"},
     }
