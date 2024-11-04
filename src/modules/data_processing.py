@@ -109,11 +109,8 @@ def obs_preprocessing(df_obs):
 
 def mod_preprocessing(dataset_mod):
 
-    # Select the total SWE only
-    dataset_mod_swe = dataset_mod["WSN_T_ISBA"]
-
-    # Convert to a DataFrame and rename the total SWE
-    df_mod = dataset_mod_swe.to_dataframe()
+    # Convert total SWE to a DataFrame and rename to mod_swe
+    df_mod = dataset_mod["WSN_T_ISBA"].to_dataframe()
     df_mod.rename(columns={"WSN_T_ISBA": "mod_swe"}, inplace=True)
 
     # Take only the first sample for each unique time value
@@ -212,6 +209,9 @@ def cro_preprocessing(dataset_mod):
     # Aggregate the layer-based variables to daily values
     df_agg["SNOW_SAT_avg"] = saturation.resample("D").mean()
     df_agg["COLD_CONTENT_pts"] = cold_content.resample("D").first()
+
+    # Fill the missing values in the snow saturation with zeros
+    df_agg["SNOW_SAT_avg"].fillna(0, inplace=True)
 
     # Add cro_ as prefix to the variable names
     df_agg.columns = [f"cro_{col}" for col in df_agg.columns]
