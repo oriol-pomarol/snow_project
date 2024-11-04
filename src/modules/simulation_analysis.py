@@ -39,12 +39,19 @@ def simulation_analysis():
     sim_modes = ['mod_swe'] + list(cfg.modes().keys())
     df_nnse = pd.DataFrame(columns=sim_modes)
 
+    # Create an empty Series to store the number of observations
+    n_obs = pd.Series(dtype=int)
+    
     # Find the nNSE and store them in the dataframe for each station
     for station_name in cfg.station_names:
-
+    
         # Clean the data
         df_station_clean = dict_dfs[station_name].dropna()
+        
+        # Take the number of observations for the station
+        n_obs[station_name] = len(df_station_clean)
 
+        # Calculate the nNSE for each mode
         if cfg.temporal_split and (station_name in cfg.trn_stn):
 
             # Find the start and end dates for the testing set
@@ -71,7 +78,11 @@ def simulation_analysis():
                 nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
             
             df_nnse.loc[station_name] = nnse_train
-
+   
+    # Calculate the weighted average
+    avg_stn = list(cfg.trn_stn if cfg.temporal_split else cfg.tst_stn)
+    df_nnse.loc['AVERAGE (test)'] = (df_nnse.loc[avg_stn].T * n_obs[avg_stn]).sum(axis=1) / n_obs[avg_stn].sum()
+    
     # Save the nNSE as csv
     df_nnse.to_csv(paths.outputs / 'fwd_sim_nnse.csv')
 
