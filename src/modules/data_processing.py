@@ -46,6 +46,12 @@ def data_processing():
         file_path_mod = dir_path_mod / listdir(dir_path_mod)[0]
         dataset_mod = xr.open_dataset(file_path_mod, decode_times=False)
 
+        # Convert the time variable to a datetime object
+        time_var = dataset_mod.variables.get("time")
+        start_date = pd.to_datetime(time_var.attrs.get("units")[12:])
+        time = pd.date_range(start=start_date, periods=len(time_var), freq="H")
+        dataset_mod = dataset_mod.assign_coords(time=time)
+
         # Get the location of the station
         lat_station = data_info_met.loc[station_idx, "Latitude"]
         lng_station = data_info_met.loc[station_idx, "Longitude"]
@@ -54,10 +60,12 @@ def data_processing():
         df_met_preprocessed = met_preprocessing(df_met, lat_station, lng_station)
         df_obs_preprocessed = obs_preprocessing(df_obs)
         df_mod_preprocessed = mod_preprocessing(dataset_mod)
+        df_cro_preprocessed = cro_preprocessing(dataset_mod)
 
         # Concatenate the DataFrames
         df_data = pd.concat(
-            [df_met_preprocessed, df_obs_preprocessed, df_mod_preprocessed],
+            [df_met_preprocessed, df_cro_preprocessed,
+             df_obs_preprocessed, df_mod_preprocessed],
             axis=1
         )
 
@@ -100,9 +108,6 @@ def obs_preprocessing(df_obs):
 ###############################################################################
 
 def mod_preprocessing(dataset_mod):
-    # Find the starting date for each simulation
-    time_var = dataset_mod.variables.get("time")
-    start_date = pd.to_datetime(time_var.attrs.get("units")[12:])
 
     # Select the total SWE only
     dataset_mod_swe = dataset_mod["WSN_T_ISBA"]
@@ -114,13 +119,6 @@ def mod_preprocessing(dataset_mod):
     # Take only the first sample for each unique time value
     df_mod = df_mod.groupby("time").first()
 
-    # Convert the time index to datetime values starting at start_date
-    start_datetime = pd.to_datetime(start_date)
-    datetime_index = pd.date_range(start=start_datetime,
-                                   periods=len(df_mod),
-                                   freq="H")
-    df_mod.index = datetime_index
-
     # Take only the measurements made at 12:00
     df_mod = df_mod[df_mod.index.strftime("%H:%M") == "12:00"]
 
@@ -129,10 +127,101 @@ def mod_preprocessing(dataset_mod):
 
     return df_mod
 
+###############################################################################
+
+def cro_preprocessing(dataset_mod):
+        
+    # Define the names of the aggregated meteorological variables
+    names_cro_agg = [
+        "TG1_avg",
+        "WG1_avg",
+        "WGI1_avg",
+        "RN_ISBA_avg",
+        "LE_ISBA_avg",
+        "LEI_ISBA_avg",
+        "SWD_ISBA_avg",
+        "TS_ISBA_avg",
+        "TS_ISBA_max",
+        "RAM_SONDE_avg",
+        "WET_TH_avg",
+        "REFROZ_TH_avg",
+        "PSN_ISBA_avg",
+        "TALB_ISBA_avg",
+        "DSN_T_ISBA_pts",
+    ]
+
+    # Create an empty dataframe for the aggregated variables
+    df_agg = pd.DataFrame()
+
+    # Take the variables of interest from the original dataset
+    unique_vars = list(set([var[:-4] for var in names_cro_agg]))
+    df_cro = dataset_mod[unique_vars].to_dataframe()
+
+    # Take only the first sample for each unique time value
+    df_cro = df_cro.groupby(level="time").first()
+
+    # Shift the data 12h to fit snow observations
+    df_cro.index = df_cro.index - pd.Timedelta(hours=12)
+
+    # Remove rows from incomplete days
+    while df_cro.index[0].hour != 0:
+        df_cro = df_cro[1:]
+    while df_cro.index[-1].hour != 23:
+        df_cro = df_cro[:-1]
+
+    for var_name in names_cro_agg:
+        # Take the variable of interest from the original DataFrame
+        var = df_cro[var_name[:-4]].copy()
+
+        # Aggregate using the indicated operation according to var_name
+        if var_name[-3:] == "avg":
+            var_agg = var.resample("D").mean()
+        elif var_name[-3:] == "max":
+            var_agg = var.resample("D").max()
+        elif var_name[-3:] == "pts":
+            var_agg = var.resample("D").first()
+
+        # Add the variable to the DataFrame
+        df_agg[var_name] = var_agg
+
+    # Retrieve the layer-based variables from the original dataset
+    df_lbv = dataset_mod[["WSN_VEG", "SNOWTEMP", "SNOWLIQ", "SNOWDZ"]].to_dataframe()
+
+    # Calculate the snow saturation
+    liquid_water_content = df_lbv["SNOWLIQ"].groupby(level="time").sum()
+    snow_depth = df_lbv["SNOWDZ"].groupby(level="time").sum()
+    saturation = liquid_water_content / snow_depth
+
+    # Calculate the cold content
+    temp_diff = df_lbv["SNOWTEMP"] - 273.15 # K
+    ice_heat_cpt = 2100 # J/kg/K
+    cold_content_lyr = ice_heat_cpt * df_lbv["WSN_VEG"] * temp_diff
+    cold_content = cold_content_lyr.groupby(level="time").sum()
+
+    for var in [saturation, cold_content]:
+        
+        # Shift the data 12h to fit snow observations
+        var.index = var.index - pd.Timedelta(hours=12)
+
+        # Remove rows from incomplete days
+        while var.index[0].hour != 0:
+            var = var[1:]
+        while var.index[-1].hour != 23:
+            var = var[:-1]
+
+    # Aggregate the layer-based variables to daily values
+    df_agg["SNOW_SAT_avg"] = saturation.resample("D").mean()
+    df_agg["COLD_CONTENT_pts"] = cold_content.resample("D").first()
+
+    # Add cro_ as prefix to the variable names
+    df_agg.columns = [f"cro_{col}" for col in df_agg.columns]
+
+    return df_agg
 
 ###############################################################################
 
 def met_preprocessing(df_met, lat_station, lng_station):
+
     # Define the names of the aggregated meteorological variables
     names_met_agg = [
         "Psurf_avg",
