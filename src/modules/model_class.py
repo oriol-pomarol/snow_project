@@ -11,11 +11,11 @@ from .auxiliary_functions import preprocess_data_lstm
 
 class Model:
     def __init__(self, mode):
-        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
+        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'cro_vars', 'data_aug']
         if valid_mode:
             self.mode = mode.lower()
         else:
-            raise ValueError("Invalid model setup.")
+            raise ValueError(f"Invalid model setup: {valid_mode}.")
         self.model = None
         self.model_type = None
         self.hyperparameters = None
@@ -63,7 +63,7 @@ class Model:
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*crocus_shape*(self.mode=='err_corr')) // cfg.lag))
+            sequential_input = keras.layers.Input(shape=(cfg.lag, (input_shape-1*crocus_shape*(self.mode=='cro_vars')) // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
@@ -72,12 +72,12 @@ class Model:
                     x = keras.layers.LSTM(units, return_sequences=True)(x)
                 else:
                     x = keras.layers.LSTM(units)(x)
-            if self.mode == 'err_corr' and crocus_shape > 0:
+            if self.mode == 'cro_vars':
                 extra_var_input = keras.layers.Input(shape=(crocus_shape,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
             output_layer = keras.layers.Dense(1, activation='linear')(x)
-            if self.mode == 'err_corr' and crocus_shape > 0:
+            if self.mode == 'cro_vars':
                 self.model = keras.models.Model(inputs=[sequential_input, extra_var_input], outputs=output_layer)
             else:
                 self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
