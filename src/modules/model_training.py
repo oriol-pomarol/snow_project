@@ -137,7 +137,10 @@ def train_model(X, y, X_aug, y_aug, mode):
     # Create a model with the best hyperparameters
     best_model = Model(mode)
     best_model.load_hps()
-    best_model.create_model(X[0].shape[1], 0) # Change 0 to the number of crocus variables
+
+    # Count the number of crocus variables
+    n_cro_vars = sum([1 for col in X_trn.columns if col.startswith('cro_')])
+    best_model.create_model(X[0].shape[1], n_cro_vars)
 
     # Train the model
     history = best_model.fit(X = X_trn, y = y_trn, sample_weight = sample_weight)
