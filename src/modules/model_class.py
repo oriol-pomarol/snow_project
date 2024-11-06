@@ -110,7 +110,7 @@ class Model:
     def fit(self, X, y, **kwargs):
 
         # Drop a percentage of the data, unless it is less than 100 samples
-        if len(X) > 100:
+        if len(X) > 100 and cfg.drop_data > 0:
             mask = np.random.rand(len(X)) > cfg.drop_data
             X = X[mask]
             y = y[mask]
