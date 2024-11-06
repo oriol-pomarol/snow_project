@@ -14,7 +14,7 @@ class cfg:
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfj')
     tst_stn: tuple = aug_stn
     drop_data: float = 0.0
-    epochs: tuple = (10, 50, 100)
+    epochs: tuple = (25, 50, 75, 100)
     station_years: tuple = ()
 
     # Define the modes and the corresponding predictors and target
@@ -50,11 +50,11 @@ class cfg:
     
     def __post_init__(self):
         # Check that all stations are in station_names
-        assert all(station in self.station_names for station in self.trn_stations), \
+        assert all(station in self.station_names for station in self.trn_stn), \
         "Some elements in trn_stations are not in station_names"
-        assert all(station in self.station_names for station in self.aug_stations), \
+        assert all(station in self.station_names for station in self.aug_stn), \
         "Some elements in aug_stations are not in station_names"
-        assert all(station in self.station_names for station in self.tst_stations), \
+        assert all(station in self.station_names for station in self.tst_stn), \
         "Some elements in tst_stations are not in station_names"
 
 @dataclass(frozen=True)
