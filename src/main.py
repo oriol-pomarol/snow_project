@@ -19,6 +19,13 @@ def generate_configs():
     config_names = [f"rw_{config.rel_weight}_ts_{config.temporal_split}" for config in configs]
     result_paths = [paths(results = paths.root / "results" / name) for name in config_names]
 
+    # Create the result directories
+    for path in result_paths:
+        path.results.mkdir(parents=True, exist_ok=True)
+        # Create the subdirectories
+        for sub_dir in ['models', 'figures', 'outputs']:
+            (path.results / sub_dir).mkdir(parents=True, exist_ok=True)
+
     return configs, result_paths
 
 def run_with_config(config, result_path):
