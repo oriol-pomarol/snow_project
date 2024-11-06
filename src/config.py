@@ -69,6 +69,7 @@ class paths:
     temp_data: Path = root / "data" / "temp"
 
     # RESULTS PATHS
-    models: Path = root / "results" / "models"
-    figures: Path = root / "results" / "figures"
-    outputs: Path = root / "results" / "outputs"
+    results: Path = root / "results"
+    models: Path = results / "models"
+    figures: Path = results / "figures"
+    outputs: Path = results / "outputs"
