@@ -127,11 +127,8 @@ def initialize_models(mode):
     # Initialize a list of models
     models = []
 
-    # Loop over each model type
-    for model_type in ['rf', 'nn', 'lstm']:
-
-        # Get the hyperparameters for the model type
-        hp_vals_dict = cfg.hyperparameters(model_type)
+    # Loop over each model type and hyperparameter combination
+    for model_type, hp_vals_dict in cfg.hyperparameters().items():
 
         # Set the epochs for the model
         if model_type == 'rf':
