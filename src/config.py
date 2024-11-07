@@ -18,7 +18,7 @@ class cfg:
     station_years: tuple = ()
 
     # Define the modes and the corresponding predictors and target
-    def modes():
+    def modes(self):
         return {
             "dir_pred": {
                 "predictors": "^met_", 
@@ -39,7 +39,7 @@ class cfg:
         }
     
     # Set the hyperparameters to test for each model type
-    def hyperparameters():
+    def hyperparameters(self):
         return {
             'rf': {
                 'max_depth': [None, 10, 20],

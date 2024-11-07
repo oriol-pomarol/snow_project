@@ -72,7 +72,9 @@ for config, result_path in zip(configs, result_paths):
 
     # Save the configuration to a txt file
     with open(result_path / 'config.txt', 'w') as f:
-        f.write(str(config))
+        f.write(str(config) + '\n')
+        f.write(str(config.modes()) + '\n')
+        f.write(str(config.hyperparameters()))
 
     # Run the code
     run_with_config(config, result_path)
