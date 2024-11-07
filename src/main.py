@@ -16,10 +16,10 @@ for lag in lag_values:
     # Update the lag value in the configuration parameters
     cfg.lag = lag
 
-    # # Preprocess the data for the given lag value
-    # print('Loading and processing the data...')
-    # data_processing()
-    # print('Successfully loaded and processed the data...')
+    # Preprocess the data for the given lag value
+    print('Loading and processing the data...')
+    data_processing()
+    print('Successfully loaded and processed the data...')
 
     for temporal_split in temporal_split_values:
 
@@ -49,34 +49,31 @@ for lag in lag_values:
                     if callable(value):
                         value = value()
                     f.write(f'{key} = {value}\n')
-            # f.write(str(cfg) + '\n')
-            # f.write(str(cfg.modes()) + '\n')
-            # f.write(str(cfg.hyperparameters()))
 
-        # # Record starting run time
-        # start_time = time.time()
+        # Record starting run time
+        start_time = time.time()
 
-        # # Find the best hyperparameters for the models
-        # print('Finding the best model type and hyperparameters...')
-        # model_selection()
-        # print('Successfully found the best model type and hyperparameters...')
+        # Find the best hyperparameters for the models
+        print('Finding the best model type and hyperparameters...')
+        model_selection()
+        print('Successfully found the best model type and hyperparameters...')
 
-        # # Train the models with the different setups
-        # print('Training and evaluating models...')
-        # model_training()
-        # print('Successfully trained and evaluated models...')
+        # Train the models with the different setups
+        print('Training and evaluating models...')
+        model_training()
+        print('Successfully trained and evaluated models...')
 
-        # # Simulate SWE using ML for each station
-        # print('Performing forward simulation...')
-        # forward_simulation()
-        # print('Successfully performed forward simulation...')
+        # Simulate SWE using ML for each station
+        print('Performing forward simulation...')
+        forward_simulation()
+        print('Successfully performed forward simulation...')
 
-        # # Analyze the simulation results
-        # print('Analyzing simulation results...')
-        # simulation_analysis()
-        # print('Successfully analyzed simulation results...')
+        # Analyze the simulation results
+        print('Analyzing simulation results...')
+        simulation_analysis()
+        print('Successfully analyzed simulation results...')
 
-        # # Print execution time
-        # end_time = time.time()
-        # execution_time = (end_time - start_time) / 60
-        # print('Script finalized.\nExecution time: {:.3g} minutes.'.format(execution_time))
+        # Print execution time
+        end_time = time.time()
+        execution_time = (end_time - start_time) / 60
+        print('Script finalized.\nExecution time: {:.3g} minutes.'.format(execution_time))
