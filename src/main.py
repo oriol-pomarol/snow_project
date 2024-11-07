@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 from modules.data_processing import data_processing
 from modules.model_selection import model_selection
 from modules.model_training import model_training
@@ -15,7 +16,8 @@ def generate_configs():
     # Generate the configurations and result paths
     configs = [cfg(temporal_split=ts, lag=lg) for ts in temporal_split_values for lg in lag_values]
     config_names = [f"ts_{config.temporal_split}_lg_{config.lag}" for config in configs]
-    result_paths = [paths(results = paths.root / "results" / name) for name in config_names]
+    root_path = Path(__file__).resolve().parents[1]
+    result_paths = [root_path / "results" / name for name in config_names]
 
     return configs, result_paths
 
@@ -66,11 +68,11 @@ for config, result_path in zip(configs, result_paths):
 
     # Create the results directories if missing
     for sub_dir in ['models', 'figures', 'outputs']:
-        (result_paths / sub_dir).mkdir(parents=True, exist_ok=True)
+        (result_path / sub_dir).mkdir(parents=True, exist_ok=True)
 
-    # Save the configuration to a file in the outputs directory
+    # Save the configuration to a txt file
     with open(result_path / 'config.txt', 'w') as f:
         f.write(str(config))
-        
+
     # Run the code
     run_with_config(config, result_path)
