@@ -31,7 +31,7 @@ class Model:
     
     def save_hps(self, path_dir=None):
         if path_dir is None:
-            path_dir = paths.temp_data
+            path_dir = paths.temp
         hps_mt = {
             'hyperparameters': self.hyperparameters,
             'model_type': self.model_type,
@@ -42,7 +42,7 @@ class Model:
 
     def load_hps(self, path_dir=None):
         if path_dir is None:
-            path_dir = paths.temp_data
+            path_dir = paths.temp
         with open(path_dir / f'{self.mode}_hps.json', 'r') as f:
             hps_mt = json.load(f)
             self.hyperparameters = hps_mt.get('hyperparameters')

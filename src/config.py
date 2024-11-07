@@ -66,10 +66,10 @@ class paths:
     # DATA PATHS
     proc_data: Path = root / "data" / "processed"
     raw_data: Path = root / "data" / "raw"
-    temp_data: Path = root / "data" / "temp"
 
     # RESULTS PATHS
     results: Path = root / "results"
     models: Path = results / "models"
     figures: Path = results / "figures"
     outputs: Path = results / "outputs"
+    temp: Path = results / "temp"

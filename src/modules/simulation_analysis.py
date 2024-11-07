@@ -9,7 +9,7 @@ def simulation_analysis():
 
     if cfg.temporal_split:
         # Load the split dates
-        df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+        df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
         # Convert all columns to a datetime format
         df_split_dates = df_split_dates.apply(pd.to_datetime)
@@ -26,7 +26,7 @@ def simulation_analysis():
 
         # Load the ML simulated data
         filename = f"df_{station_name}_pred_swe.csv"
-        df_sim = pd.read_csv(paths.temp_data / filename, index_col=0)
+        df_sim = pd.read_csv(paths.temp / filename, index_col=0)
 
         # Join both dataframes by index
         df_station = df_obs.join(df_sim, how="outer")

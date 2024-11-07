@@ -105,10 +105,10 @@ def model_training():
                 df_aug = pd.concat([df_aug, pd.DataFrame({'y_aug': y_aug, 'y_aug_pred': y_aug_pred, 'split': s})], ignore_index=True)
 
         # Save the dataframes
-        df_trn.to_csv(paths.temp_data / f'pred_vs_true_{mode}.csv', index=False)
-        df_tst.to_csv(paths.temp_data / f'pred_vs_true_tst_{mode}.csv', index=False)
+        df_trn.to_csv(paths.temp / f'pred_vs_true_{mode}.csv', index=False)
+        df_tst.to_csv(paths.temp / f'pred_vs_true_tst_{mode}.csv', index=False)
         if mode == 'data_aug':
-            df_aug.to_csv(paths.temp_data / f'pred_vs_true_{mode}_aug.csv', index=False)
+            df_aug.to_csv(paths.temp / f'pred_vs_true_{mode}_aug.csv', index=False)
         
         # Make a plot vs true plot
         plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
@@ -150,7 +150,7 @@ def train_model(X, y, X_aug, y_aug, mode):
 
         # Save the training history
         history_df = pd.DataFrame(history.history)
-        history_df.to_csv(paths.temp_data / f'train_history_{mode}.csv')
+        history_df.to_csv(paths.temp / f'train_history_{mode}.csv')
                           
         # Plot the MSE history of the training
         plt.figure()
@@ -252,7 +252,7 @@ def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):
 def temporal_test_split(X, y, split_idx):
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_tst, y_tst = [], [], [], []

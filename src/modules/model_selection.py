@@ -174,7 +174,7 @@ def station_validation_split(X, y, i):
 def temporal_validation_split(X, y, split_idx):
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_val, y_val = [], [], [], []
