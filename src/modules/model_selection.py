@@ -130,6 +130,10 @@ def initialize_models(mode):
     # Loop over each model type and hyperparameter combination
     for model_type, hp_vals_dict in cfg.hyperparameters().items():
 
+        # If lag is 0, skip LSTM models
+        if cfg.lag == 0 and model_type == 'lstm':
+            continue
+
         # Set the epochs for the model
         if model_type == 'rf':
             epochs = None
