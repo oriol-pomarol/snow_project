@@ -138,9 +138,11 @@ def train_model(X, y, X_aug, y_aug, mode):
     best_model = Model(mode)
     best_model.load_hps()
 
-    # Count the number of crocus variables
-    n_cro_vars = sum([1 for col in X_trn.columns if col.startswith('cro_')])
-    best_model.create_model(X[0].shape[1], n_cro_vars)
+    # Count the number of meteo variables
+    n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])
+
+    # Create the model and fit it to the data
+    best_model.create_model(X_trn.shape[1], n_met_vars)
 
     # Train the model
     history = best_model.fit(X = X_trn, y = y_trn, sample_weight = sample_weight)

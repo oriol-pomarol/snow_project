@@ -92,11 +92,11 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
             print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
 
-            # Count the number of crocus variables
-            n_cro_vars = sum([1 for col in X_trn.columns if col.startswith('cro_')])
+            # Count the number of meteo variables
+            n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])
 
             # Create the model and fit it to the data
-            model.create_model(X_trn.shape[1], n_cro_vars)
+            model.create_model(X_trn.shape[1], n_met_vars)
             model.fit(X_trn, y_trn, sample_weight=sample_weight)
             
             # Test the model on the validation data and store the loss
