@@ -1,15 +1,15 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-@dataclass(frozen=True)
+@dataclass()
 class cfg:
     lag: tuple = 1
     rel_weight: tuple = 1
     temporal_split: bool = False
     n_temporal_splits: int = 5
     val_ratio: float = 1/3
-    drop_data: float = 0.0
-    epochs: tuple = (25, 50, 75, 100)
+    drop_data: float = 0.99
+    epochs: tuple = (1, 2, 3)
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")
     trn_stn: tuple = ('cdp', 'rme', 'sod')
@@ -18,7 +18,8 @@ class cfg:
     station_years: tuple = ()
 
     # Define the modes and the corresponding predictors and target
-    def modes(self):
+    @staticmethod
+    def modes():
         return {
             "dir_pred": {
                 "predictors": "^met_", 
@@ -39,25 +40,26 @@ class cfg:
         }
     
     # Set the hyperparameters to test for each model type
-    def hyperparameters(self):
+    @staticmethod
+    def hyperparameters():
         return {
             'rf': {
                 'max_depth': [None, 10, 20],
-                'max_samples': [None, 0.5, 0.8]
+                #'max_samples': [None, 0.5, 0.8]
             },
             'nn': {
                 'layers': [[2048], [128, 128, 128]],
-                'learning_rate': [1e-3, 1e-5],
-                'l2_reg': [0, 1e-2, 1e-4]
+                #'learning_rate': [1e-3, 1e-5],
+                #'l2_reg': [0, 1e-2, 1e-4]
             },
             'lstm': {
                 'layers': [[512], [128, 64]],
-                'learning_rate': [1e-3, 1e-5],
-                'l2_reg': [0, 1e-2, 1e-4]
+                #'learning_rate': [1e-3, 1e-5],
+                #'l2_reg': [0, 1e-2, 1e-4]
             },
         }
 
-@dataclass(frozen=True)
+@dataclass()
 class paths:
 
     # ROOT PATH

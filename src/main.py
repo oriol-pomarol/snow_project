@@ -1,5 +1,4 @@
 import time
-from pathlib import Path
 from modules.data_processing import data_processing
 from modules.model_selection import model_selection
 from modules.model_training import model_training
@@ -7,74 +6,77 @@ from modules.forward_simulation import forward_simulation
 from modules.simulation_analysis import simulation_analysis
 from config import cfg, paths
 
-def generate_configs():
-    
-    # Define the values for the configuration parameters
-    temporal_split_values = [True, False]
-    lag_values = [0, 14]
+# Define the values for the configuration parameters
+temporal_split_values = [True, False]
+lag_values = [0, 14]
 
-    # Generate the configurations and result paths
-    configs = [cfg(temporal_split=ts, lag=lg) for ts in temporal_split_values for lg in lag_values]
-    config_names = [f"ts_{config.temporal_split}_lg_{config.lag}" for config in configs]
-    root_path = Path(__file__).resolve().parents[1]
-    result_paths = [root_path / "results" / name for name in config_names]
+# Loop over each combination of configuration parameters
+for lag in lag_values:
 
-    return configs, result_paths
+    # Update the lag value in the configuration parameters
+    cfg.lag = lag
 
-def run_with_config(config, result_path):
+    # # Preprocess the data for the given lag value
+    # print('Loading and processing the data...')
+    # data_processing()
+    # print('Successfully loaded and processed the data...')
 
-    # Override the global cfg and paths with the new values
-    global cfg, paths
-    cfg = config
-    paths = result_path
+    for temporal_split in temporal_split_values:
 
-    # Record starting run time
-    start_time = time.time()
+        # Update the split type in the configuration parameters
+        cfg.temporal_split = temporal_split
 
-    # Load and process the data
-    print('Loading and processing the data...')
-    data_processing()
-    print('Successfully loaded and processed the data...')
+        # Define the new results path based on the configuration parameters
+        config_name = f"ts_{cfg.temporal_split}_lg_{cfg.lag}"
+        paths.results = paths.root / "results" / config_name
 
-    # Find the best hyperparameters for the models
-    print('Finding the best model type and hyperparameters...')
-    model_selection()
-    print('Successfully found the best model type and hyperparameters...')
+        # Update the other paths depending on the results path
+        paths.models = paths.results / "models"
+        paths.outputs = paths.results / "outputs"
+        paths.figures = paths.results / "figures"
+        paths.temp = paths.results / "temp"
 
-    # Train the models with the different setups
-    print('Training and evaluating models...')
-    model_training()
-    print('Successfully trained and evaluated models...')
+        # Create the directories for these paths if they do not exist
+        paths.models.mkdir(parents=True, exist_ok=True)
+        paths.outputs.mkdir(parents=True, exist_ok=True)
+        paths.figures.mkdir(parents=True, exist_ok=True)
+        paths.temp.mkdir(parents=True, exist_ok=True)
 
-    # Simulate SWE using ML for each station
-    print('Performing forward simulation...')
-    forward_simulation()
-    print('Successfully performed forward simulation...')
+        # Save the configuration to a txt file
+        with open(paths.results / 'config.txt', 'w') as f:
+            for key, value in cfg.__dict__.items():
+                if not key.startswith('__'):
+                    if callable(value):
+                        value = value()
+                    f.write(f'{key} = {value}\n')
+            # f.write(str(cfg) + '\n')
+            # f.write(str(cfg.modes()) + '\n')
+            # f.write(str(cfg.hyperparameters()))
 
-    # Analyze the simulation results
-    print('Analyzing simulation results...')
-    simulation_analysis()
-    print('Successfully analyzed simulation results...')
+        # # Record starting run time
+        # start_time = time.time()
 
-    # Print execution time
-    end_time = time.time()
-    execution_time = (end_time - start_time) / 60
-    print('Script finalized.\nExecution time: {:.3g} minutes.'.format(execution_time))
+        # # Find the best hyperparameters for the models
+        # print('Finding the best model type and hyperparameters...')
+        # model_selection()
+        # print('Successfully found the best model type and hyperparameters...')
 
-# Generate the configurations and result paths
-configs, result_paths = generate_configs()
+        # # Train the models with the different setups
+        # print('Training and evaluating models...')
+        # model_training()
+        # print('Successfully trained and evaluated models...')
 
-for config, result_path in zip(configs, result_paths):
+        # # Simulate SWE using ML for each station
+        # print('Performing forward simulation...')
+        # forward_simulation()
+        # print('Successfully performed forward simulation...')
 
-    # Create the results directories if missing
-    for sub_dir in ['models', 'figures', 'outputs']:
-        (result_path / sub_dir).mkdir(parents=True, exist_ok=True)
+        # # Analyze the simulation results
+        # print('Analyzing simulation results...')
+        # simulation_analysis()
+        # print('Successfully analyzed simulation results...')
 
-    # Save the configuration to a txt file
-    with open(result_path / 'config.txt', 'w') as f:
-        f.write(str(config) + '\n')
-        f.write(str(config.modes()) + '\n')
-        f.write(str(config.hyperparameters()))
-
-    # Run the code
-    run_with_config(config, result_path)
+        # # Print execution time
+        # end_time = time.time()
+        # execution_time = (end_time - start_time) / 60
+        # print('Script finalized.\nExecution time: {:.3g} minutes.'.format(execution_time))
