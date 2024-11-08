@@ -26,12 +26,9 @@ def load_processed_data():
 
 def preprocess_data_lstm(X, mode):
 
-    # If in error correction, split the meteorological and crocus data
-    if mode == 'err_corr':
-        X_met = X.filter(regex='^met_').values
-        X_cro = X.filter(regex='^cro_').values
-    else:
-        X_met = X.values
+    # Split between meteorological and additional variables
+    X_met = X.filter(regex='^met_').values
+    X_add = X.filter(regex='^(?!met_)').values
 
     # Add extra dimension if the input is 1D
     if X_met.ndim == 1:
@@ -44,10 +41,9 @@ def preprocess_data_lstm(X, mode):
     # Transpose the subarrays to get the desired structure
     output_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
 
-    # If in error correction, return the crocus data as well (if available)
-    if mode == 'err_corr' and X_cro.shape[1] > 0:
-        output_X_cro = np.expand_dims(X_cro, axis=0)
-        return output_X_met, output_X_cro
+    # If available, return the additonal variables as well 
+    if X_add.shape[1] > 0:
+        return output_X_met, X_add
 
     return output_X_met
 
