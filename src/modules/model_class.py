@@ -122,7 +122,7 @@ class Model:
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
@@ -145,7 +145,7 @@ class Model:
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
 
         # Predict the data; if it is not a random forest set the verbose to 0
         if self.model_type == 'rf':
@@ -163,7 +163,7 @@ class Model:
             y = y[mask]
 
         if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X, mode=self.mode)
+            X = preprocess_data_lstm(X)
         if type(self.model) == dict:
             mse = {}
             for epoch, model in self.model.items():

@@ -24,7 +24,7 @@ def load_processed_data():
 
 ###############################################################################
 
-def preprocess_data_lstm(X, mode):
+def preprocess_data_lstm(X):
 
     # Split between meteorological and additional variables
     X_met = X.filter(regex='^met_').values
