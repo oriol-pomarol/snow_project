@@ -127,10 +127,15 @@ def train_model(X, y, X_aug, y_aug, mode):
     X_trn = pd.concat(X)
     y_trn = pd.concat(y)
     
-    # If in data augmentation mode, split the augmented data too
+    # If in data augmentation mode, split the augmented data 
     if mode == 'data_aug':
+        # Load the relative weight
+        with open(paths.outputs / 'best_rel_weight.txt', 'r') as f:
+            rel_weight = float(f.read())
+        
+        # Split the augmented data
         X_trn, y_trn, sample_weight = \
-            data_aug_split(X_trn, y_trn, X_aug, y_aug)
+            data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight)
     else:
         sample_weight = None
 

@@ -4,7 +4,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class cfg:
     lag: tuple = 1
-    rel_weight: tuple = 1
+    rel_weights: tuple = (1/2, 1, 2)
     temporal_split: bool = False
     n_temporal_splits: int = 5
     val_ratio: float = 1/3

@@ -65,50 +65,34 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
     # Initialize a model for each model type and HP combination
     models = initialize_models(mode)
 
-    # Initialize losses for model validation
-    n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
-    losses = np.zeros((len(models), n_splits))
-
-    # Iterate over each split
-    for s in range(n_splits):
-
-        # Obtain the training, validation and test data
-        if cfg.temporal_split:
-            X_trn, X_tst, y_trn, y_tst = \
-                temporal_validation_split(X, y, s)
-        else:
-            X_trn, X_tst, y_trn, y_tst = \
-                station_validation_split(X, y, s)
-
-        # Add the augmented data if in the corresponding mode
-        if mode == 'data_aug':
-            X_trn, y_trn, sample_weight = \
-                data_aug_split(X_trn, y_trn, X_aug, y_aug)
-        else:
-            sample_weight = None
-
-        # Iterate through every model
-        for m, model in enumerate(models):
-
-            print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
-
-            # Count the number of meteo variables
-            n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])
-
-            # Create the model and fit it to the data
-            model.create_model(X_trn.shape[1], n_met_vars)
-            model.fit(X_trn, y_trn, sample_weight=sample_weight)
-            
-            # Test the model on the validation data and store the loss
-            loss = model.test(X=X_tst, y=y_tst)
-            losses[m, s] = loss
+    # Get the losses for each model and split with a relative weight of 1
+    rel_weights = [1] * len(models)
+    losses = get_losses(X, y, X_aug, y_aug, models, rel_weights, mode)
 
     # Select the best model
     mean_loss = np.mean(losses, axis=1)
     best_model = models[np.argmin(mean_loss)]
 
+    # Tune the relative weight of the augmented data if in the data_aug mode
+    if mode == 'data_aug':
+
+        # Get the losses for the best model with each relative weight
+        models_aug = [best_model] * len(cfg.rel_weights)
+        losses_aug = get_losses(X, y, X_aug, y_aug, models_aug, cfg.rel_weights, mode)
+
+        # Find the best relative weight and store it as a file
+        mean_loss_aug = np.mean(losses_aug, axis=1)
+        best_rel_weight = cfg.rel_weights[np.argmin(mean_loss_aug)]
+        with open(paths.outputs / 'best_rel_weight.txt', 'w') as f:
+            f.write(best_rel_weight)
+
+        # Concatenate the augmented losses to the original losses
+        losses = np.concatenate((losses, losses_aug), axis=1)
+
     # Save the model hyperparameters and their losses as a csv
     model_names = [str(model) for model in models]
+    if mode == 'data_aug':
+        model_names += [f'{model}_rw{rel_weight})' for rel_weight, model in zip(cfg.rel_weights, models)]
     if losses.shape[1] == 1:
         df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})
     else:
@@ -157,6 +141,50 @@ def initialize_models(mode):
             models.append(model)
 
     return models
+
+###############################################################################
+
+def get_losses(X, y, X_aug, y_aug, models, rel_weights, mode):
+
+    # Initialize losses for model validation
+    n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
+    losses = np.zeros((len(models), n_splits))
+
+    # Iterate over each split
+    for s in range(n_splits):
+
+        # Obtain the training, validation and test data
+        if cfg.temporal_split:
+            X_trn, X_tst, y_trn, y_tst = \
+                temporal_validation_split(X, y, s)
+        else:
+            X_trn, X_tst, y_trn, y_tst = \
+                station_validation_split(X, y, s)
+
+        # Iterate through every model
+        for m, model in enumerate(models):
+
+            print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
+
+            # Add the augmented data if in the corresponding mode
+            rel_weight = rel_weights[m]
+            if mode == 'data_aug':
+                X_trn, y_trn, sample_weight = \
+                    data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight)
+            else:
+                sample_weight = None
+
+            # Count the number of meteo variables
+            n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])
+
+            # Create the model and fit it to the data
+            model.create_model(X_trn.shape[1], n_met_vars)
+            model.fit(X_trn, y_trn, sample_weight=sample_weight)
+            
+            # Test the model on the validation data and store the loss
+            loss = model.test(X=X_tst, y=y_tst)
+            losses[m, s] = loss
+    return losses
 
 ###############################################################################
 

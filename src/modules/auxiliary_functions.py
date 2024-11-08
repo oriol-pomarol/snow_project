@@ -251,7 +251,7 @@ def find_temporal_split_dates(dfs):
 
 ###############################################################################
 
-def data_aug_split(X_trn, y_trn, X_aug, y_aug):
+def data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight):
 
     # Concatenate the augmented data
     X_aug = pd.concat(X_aug)
@@ -261,7 +261,7 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug):
     y_aug = y_aug.rename(columns={y_aug.columns[0] : y_trn.columns[0]})
     
     # Calculate the training weights of the modelled data
-    weight_aug = cfg.rel_weight * len(y_trn) / len(y_aug)
+    weight_aug = rel_weight * len(y_trn) / len(y_aug)
     sample_weight = np.concatenate((np.ones(len(y_trn)), 
                                     np.full(len(y_aug), weight_aug)))
     
