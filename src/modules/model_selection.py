@@ -84,15 +84,16 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         mean_loss_aug = np.mean(losses_aug, axis=1)
         best_rel_weight = cfg.rel_weights[np.argmin(mean_loss_aug)]
         with open(paths.outputs / 'best_rel_weight.txt', 'w') as f:
-            f.write(best_rel_weight)
+            f.write(str(best_rel_weight))
 
-        # Concatenate the augmented losses to the original losses
-        losses = np.concatenate((losses, losses_aug), axis=1)
+        # Concatenate the augmented losses and mean losses
+        losses = np.concatenate((losses, losses_aug))
+        mean_loss = np.concatenate((mean_loss, mean_loss_aug))
 
     # Save the model hyperparameters and their losses as a csv
     model_names = [str(model) for model in models]
     if mode == 'data_aug':
-        model_names += [f'{model}_rw{rel_weight})' for rel_weight, model in zip(cfg.rel_weights, models)]
+        model_names += [f'{best_model}_rw{rel_weight}' for rel_weight in cfg.rel_weights]
     if losses.shape[1] == 1:
         df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})
     else:
