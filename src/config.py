@@ -54,11 +54,11 @@ class cfg:
     
     def __post_init__(self):
         # Check that all stations are in station_names
-        assert all(station in self.station_names for station in self.trn_stations), \
+        assert all(station in self.station_names for station in self.trn_stn), \
         "Some elements in trn_stations are not in station_names"
-        assert all(station in self.station_names for station in self.aug_stations), \
+        assert all(station in self.station_names for station in self.aug_stn), \
         "Some elements in aug_stations are not in station_names"
-        assert all(station in self.station_names for station in self.tst_stations), \
+        assert all(station in self.station_names for station in self.tst_stn), \
         "Some elements in tst_stations are not in station_names"
 
 @dataclass(frozen=True)

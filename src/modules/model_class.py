@@ -11,11 +11,11 @@ from .auxiliary_functions import preprocess_data_lstm
 
 class Model:
     def __init__(self, mode):
-        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'data_aug']
+        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'cro_vars', 'data_aug']
         if valid_mode:
             self.mode = mode.lower()
         else:
-            raise ValueError("Invalid model setup.")
+            raise ValueError(f"Invalid model setup: {valid_mode}.")
         self.model = None
         self.model_type = None
         self.hyperparameters = None
@@ -49,7 +49,7 @@ class Model:
             self.model_type = hps_mt.get('model_type')
             self.epochs = hps_mt.get('epochs')
 
-    def create_model(self, meteo_shape, others_shape=0):
+    def create_model(self, input_shape, n_met_vars):
         self.model = None  # Clear any existing model
 
         if self.model_type == 'nn':
@@ -63,7 +63,7 @@ class Model:
                                loss='mean_squared_error', metrics=['mean_squared_error'], weighted_metrics=[])
         
         elif self.model_type == 'lstm':
-            sequential_input = keras.layers.Input(shape=(cfg.lag, meteo_shape // cfg.lag))
+            sequential_input = keras.layers.Input(shape=(cfg.lag, n_met_vars // cfg.lag))
             activation = self.hyperparameters.get('activation', 'relu')
             depth = len(self.hyperparameters.get('layers'))
             x = sequential_input
@@ -72,12 +72,12 @@ class Model:
                     x = keras.layers.LSTM(units, return_sequences=True)(x)
                 else:
                     x = keras.layers.LSTM(units)(x)
-            if others_shape > 0:
-                extra_var_input = keras.layers.Input(shape=(others_shape,), name='extra_var_input')
+            if input_shape > n_met_vars:
+                extra_var_input = keras.layers.Input(shape=(input_shape - n_met_vars,), name='extra_var_input')
                 combined_input = keras.layers.Concatenate()([x, extra_var_input])
                 x = keras.layers.Dense(units=128, activation=activation)(combined_input)
             output_layer = keras.layers.Dense(1, activation='linear')(x)
-            if others_shape > 0:
+            if input_shape > n_met_vars:
                 self.model = keras.models.Model(inputs=[sequential_input, extra_var_input], outputs=output_layer)
             else:
                 self.model = keras.models.Model(inputs=sequential_input, outputs=output_layer)
@@ -110,7 +110,7 @@ class Model:
     def fit(self, X, y, **kwargs):
 
         # Drop a percentage of the data, unless it is less than 100 samples
-        if len(X) > 100:
+        if len(X) > 100 and cfg.drop_data > 0:
             mask = np.random.rand(len(X)) > cfg.drop_data
             X = X[mask]
             y = y[mask]

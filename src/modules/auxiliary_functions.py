@@ -26,8 +26,9 @@ def load_processed_data():
 
 def preprocess_data_lstm(X):
 
-    # Take the meteorological data
+    # Split between meteorological and additional variables
     X_met = X.filter(regex='^met_').values
+    X_add = X.filter(regex='^(?!met_)').values
 
     # Add extra dimension if the input is 1D
     if X_met.ndim == 1:
@@ -40,10 +41,9 @@ def preprocess_data_lstm(X):
     # Transpose the subarrays to get the desired structure
     output_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
 
-    # If there are additional variables, take them
-    X_no_met = X.filter(regex='^(?!met_)').values
-    if X_no_met.shape[1] > 0:
-        return output_X_met, X_no_met
+    # If available, return the additonal variables as well 
+    if X_add.shape[1] > 0:
+        return output_X_met, X_add
 
     return output_X_met
 
