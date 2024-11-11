@@ -107,6 +107,11 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
     mean_loss = np.mean(losses, axis=1)
     best_model = models[np.argmin(mean_loss)]
 
+    # If it is a NN or LSTM model, set the epochs to the median
+    if best_model.model_type != 'rf':
+        best_model.epochs = [int(np.median(best_model.best_epochs)),]
+        print(f'Saved model epochs at: {best_model.epochs[0]}')
+
     # Save the model hyperparameters and their losses as a csv
     model_names = [str(model) for model in models]
     if losses.shape[1] == 1:

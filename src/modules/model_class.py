@@ -19,6 +19,7 @@ class Model:
         self.model = None
         self.model_type = None
         self.hyperparameters = None
+        self.best_epochs = []
 
     def set_hps(self, model_type, hyperparameters, epochs=None):
         valid_model_type = model_type.lower() in ['nn', 'rf','lstm']
@@ -169,9 +170,8 @@ class Model:
             for epoch, model in self.model.items():
                 y_pred = model.predict(X)
                 mse[epoch] = mean_squared_error(y, y_pred)
-                best_epoch = min(mse, key=mse.get)
-            self.model = self.model[best_epoch]
-            self.epochs = [best_epoch]
+            best_epoch = min(mse, key=mse.get)
+            self.best_epochs.append(best_epoch)
             print(f"Reporting mse for model at epoch {best_epoch}")
             mse = mse[best_epoch]
         else:
