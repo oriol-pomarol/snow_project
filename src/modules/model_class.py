@@ -98,6 +98,8 @@ class Model:
             joblib.dump(self.model, path_dir / f'{model_name}.joblib')
         else:
             self.model.save(path_dir / f'{model_name}.h5')
+
+        joblib.dump(self.classifier_model, path_dir / f'{model_name}_classifier.joblib')
     
     def load_model(self, path_dir=None, suffix=''):
         if path_dir is None:
@@ -107,6 +109,15 @@ class Model:
             self.model = joblib.load(path_dir / f'{model_name}.joblib')
         else:
             self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
+
+        self.classifier_model = joblib.load(path_dir / f'{model_name}_classifier.joblib')
+
+    def create_classifier(self):
+        self.classifier_model = None
+
+        # Create a random forest classifier
+        from sklearn.ensemble import RandomForestClassifier
+        self.classifier_model = RandomForestClassifier(n_estimators=200, random_state=10)
 
     def fit(self, X, y, **kwargs):
 
@@ -120,6 +131,13 @@ class Model:
             sample_weight = kwargs.get('sample_weight')
             if sample_weight is not None:
                 kwargs['sample_weight'] = kwargs['sample_weight'][mask]
+        
+        # Drop the points where the target is zero
+        mask = (y != 0).values
+
+        # Apply the mask
+        X = X[mask]
+        y = y[mask]
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
@@ -138,6 +156,19 @@ class Model:
             self.model.fit(X, y, **kwargs)
             return None
 
+    def fit_classifier(self, X, y, **kwargs):
+
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100 and cfg.drop_data > 0:
+            mask = np.random.rand(len(X)) > cfg.drop_data
+            X = X[mask]
+            y = y[mask]
+
+        # Convert the target to binary and fit the classifier
+        y = (y == 0).astype(int)
+        self.classifier_model.fit(X, y, **kwargs)
+        return None
+
     def predict(self, X):
 
         # If the dataset is empty, return an empty array
@@ -154,6 +185,17 @@ class Model:
         else:
             y_pred = self.model.predict(X, verbose=0)
         return y_pred
+    
+    def predict_classifier(self, X):
+            
+        # If the dataset is empty, return an empty array
+        if len(X) == 0:
+            return np.array([])
+
+        # Predict the data
+        y_pred = self.classifier_model.predict(X)
+        return y_pred
+
 
     def test(self, X, y):
 
@@ -178,6 +220,20 @@ class Model:
             y_pred = self.model.predict(X)
             mse = mean_squared_error(y, y_pred)
         return mse
+    
+    def test_classifier(self, X, y):
+            
+        # Drop a percentage of the data, unless it is less than 100 samples
+        if len(X) > 100:
+            mask = np.random.rand(len(X)) > cfg.drop_data
+            X = X[mask]
+            y = y[mask]
+
+        # Convert the target to binary and test the classifier
+        y = (y == 0).astype(int)
+        y_pred = self.classifier_model.predict(X)
+        accuracy = np.mean(y == y_pred)
+        return accuracy
 
     def get_model_type(self):
         return self.model_type

@@ -62,6 +62,9 @@ def forward_simulation():
         # Initialize a vector for the predicted SWE
         pred_swe_arr = np.zeros((df_stn_clean.shape[0], len(dict_models)))
 
+        # Initialize a vector for the zero residual predictions
+        pred_class_arr = np.zeros((df_stn_clean.shape[0], len(dict_models)))
+
         for mode_idx, (mode, mode_vars) in enumerate(cfg.modes().items()):
             print(f"Mode {mode_idx + 1} of {len(dict_models)}.")
 
@@ -96,24 +99,39 @@ def forward_simulation():
                 # Decide which model to use in temporal split mode
                 if cfg.temporal_split and (station_name in cfg.trn_stn):
                     model = model_list[df_stn_clean.loc[df_index, 'temporal_split']]
-                
+                    
                 # Predict the next SWE value
-                pred_dswe = model.predict(row).ravel()
+                pred_y = model.predict(row).ravel()
                  
                 # In error correction, subtract the residual from the modelled dSWE
-                if cfg.modes()[mode]["predictors"] == "res_mod_swe":
+                if cfg.modes()[mode]["target"] == "res_mod_swe":
+                    # Use the classifier model to predict if y is zero
+                    is_zero = model.predict_classifier(row)
+                    pred_class_arr[row_idx, mode_idx] = is_zero
+                    if bool(is_zero):
+                        pred_y = 0
                     mod_dswe = df_stn_clean.loc[df_index, "delta_mod_swe"]
-                    pred_dswe = mod_dswe - pred_dswe
+                    pred_dswe = mod_dswe - pred_y
+
+                # If not predicting the residual, use the predicted value directly
+                else:
+                    print('no residual')
+                    pred_dswe = pred_y
 
                 # Ensure that the predicted SWE is non-negative
                 pred_swe = max(pred_swe_arr[row_idx-1, mode_idx] + pred_dswe, 0)
 
-                # Save the predicted SWE
+                # Save the predicted SWE and class
                 pred_swe_arr[row_idx, mode_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr, index=df_station_X.index, 
                               columns=cfg.modes().keys())
         df_swe.to_csv(paths.temp_data / f'df_{station_name}_pred_swe.csv')
+
+        # Save the simulated class as a dataframe
+        df_class = pd.DataFrame(pred_class_arr, index=df_station_X.index, 
+                                columns=cfg.modes().keys())
+        df_class.to_csv(paths.temp_data / f'df_{station_name}_pred_class.csv')
 
     return

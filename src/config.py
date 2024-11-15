@@ -5,8 +5,8 @@ from pathlib import Path
 class cfg:
     lag: tuple = 1
     rel_weight: tuple = 1
-    temporal_split: bool = False
-    n_temporal_splits: int = 5
+    temporal_split: bool = True
+    n_temporal_splits: int = 2
     val_ratio: float = 1/3
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")
@@ -20,10 +20,10 @@ class cfg:
     # Define the modes and the corresponding predictors and target
     def modes():
         return {
-    "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
-    "err_corr": {"predictors": "^met_", "target": "res_mod_swe"},
+    # "dir_pred": {"predictors": "^met_", "target": "delta_obs_swe"},
+    # "err_corr": {"predictors": "^met_", "target": "res_mod_swe"},
     "cro_vars": {"predictors": "^(met_|cro_)", "target": "res_mod_swe"},
-    "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
+    # "data_aug": {"predictors": "^met_", "target": "delta_obs_swe"},
     }
 
     # Set the hyperparameters for each model type

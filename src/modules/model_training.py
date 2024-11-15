@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
 from config import cfg, paths
+from .auxiliary_functions import find_temporal_split_dates
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
@@ -15,16 +16,20 @@ def model_training():
 
     # Load the processed data from all stations
     all_dfs = load_processed_data()
-    
+
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
     aug_dfs = [dropna_aug(all_dfs[stn]) for stn in cfg.aug_stn]
     tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
 
-    # Filter the biased delta SWE values
-    trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
-    aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
-    tst_dfs = [df.query('delta_obs_swe != -obs_swe') for df in tst_dfs]
+    # # Filter the biased delta SWE values
+    # trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
+    # aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
+    # tst_dfs = [df.query('delta_obs_swe != -obs_swe') for df in tst_dfs]
+
+    # Find temporal splits if in temporal mode
+    if cfg.temporal_split:
+        find_temporal_split_dates(trn_dfs)
     
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
@@ -85,6 +90,30 @@ def model_training():
             model = train_model(X_trn, y_trn, X_aug, y_aug, mode = mode)
             model.save_model(suffix=suffix)
 
+            # Predict the classes for the training and test data
+            y_trn_pred = model.predict_classifier(pd.concat(X_trn)).ravel()
+            y_tst_pred = model.predict_classifier(pd.concat(X_tst)).ravel()
+
+            # Concatenate the observed classes and convert to 1D numpy array
+            y_trn_class = (pd.concat(y_trn).values == 0).astype(int).ravel()
+            y_tst_class = (pd.concat(y_tst).values == 0).astype(int).ravel()
+
+            # Make a confusion matrix
+            confusion_matrix_trn = tf.math.confusion_matrix(y_trn_class, y_trn_pred).numpy()
+            confusion_matrix_tst = tf.math.confusion_matrix(y_tst_class, y_tst_pred).numpy()
+
+            # Make a plot of the confusion matrices
+            from sklearn.metrics import ConfusionMatrixDisplay
+            fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+            ConfusionMatrixDisplay(confusion_matrix_trn, display_labels=['non-0 values ', 'zero values']).plot(ax=ax[0])
+            ax[0].set_title('Training Data')
+            ConfusionMatrixDisplay(confusion_matrix_tst, display_labels=['non-0 values ', 'zero values']).plot(ax=ax[1])
+            ax[1].set_title('Test Data')
+            
+            # Save the plot
+            plt.tight_layout()
+            plt.savefig(paths.figures / f'confusion_matrix_{mode}_{suffix}.png')           
+
             # Predict the delta SWE for the training and test data
             y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
             y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
@@ -137,6 +166,10 @@ def train_model(X, y, X_aug, y_aug, mode):
     # Create a model with the best hyperparameters
     best_model = Model(mode)
     best_model.load_hps()
+
+    # Create a classifier model and train it
+    best_model.create_classifier()
+    best_model.fit_classifier(X_trn, y_trn)
 
     # Count the number of meteo variables
     n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])
