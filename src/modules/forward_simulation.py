@@ -101,7 +101,7 @@ def forward_simulation():
                 pred_dswe = model.predict(row).ravel()
                  
                 # In error correction, subtract the residual from the modelled dSWE
-                if cfg.modes()[mode]["predictors"] == "res_mod_swe":
+                if cfg.modes()[mode]["target"] == "res_mod_swe":
                     mod_dswe = df_stn_clean.loc[df_index, "delta_mod_swe"]
                     pred_dswe = mod_dswe - pred_dswe
 
