@@ -8,6 +8,7 @@ class cfg:
     temporal_split: bool = True
     n_temporal_splits: int = 2
     val_ratio: float = 1/3
+    prob_thresh: float = 0.9
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")
     trn_stn: tuple = ('cdp', 'rme', 'sod')

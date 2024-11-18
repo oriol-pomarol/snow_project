@@ -192,8 +192,10 @@ class Model:
         if len(X) == 0:
             return np.array([])
 
-        # Predict the data
-        y_pred = self.classifier_model.predict(X)
+        # Predict the label given the predefined threshold
+        prob_pred = self.classifier_model.predict_proba(X)
+        y_pred = (prob_pred[:, 1] > cfg.prob_thresh).astype(int)
+
         return y_pred
 
 
