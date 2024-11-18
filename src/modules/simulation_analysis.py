@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import shap
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
+from sklearn.inspection import permutation_importance
 from config import cfg, paths
 
 def simulation_analysis():
@@ -78,7 +80,61 @@ def simulation_analysis():
                 nnse_train = [calculate_nNSE(obs_swe_train, df_station_clean[mode]) for mode in sim_modes]
             
             df_nnse.loc[station_name] = nnse_train
-   
+
+        # # SHAP IMPORTANCE
+        # explainer = shap.Explainer(best_model.predict, X_train)
+        # explanation = explainer(X_val)
+
+        # plt.figure(figsize=(16,9))
+        # shap.plots.bar(explanation, max_display=15, show=False)
+        # plt.savefig(os.path.join('results',f'val_shap_bar_{mode}.png'), bbox_inches="tight")
+
+        # plt.figure(figsize=(16,9))
+        # shap.plots.violin(explanation, max_display=15, show=False)
+        # plt.savefig(os.path.join('results',f'val_shap_vio_{mode}.png'), bbox_inches="tight")
+
+        ## PERMUTATION IMPORTANCE
+        # train_importances = permutation_importance(best_model, X_train, y_train, scoring= 'neg_mean_squared_error',
+        #                                            n_repeats = 50, random_state=10).importances
+        # val_importances = permutation_importance(best_model, X_val, y_val, scoring= 'neg_mean_squared_error',
+        #                                          n_repeats = 50, random_state=10).importances
+        # np.savetxt(os.path.join('results', f'train_importances_{mode}.txt'),
+        #            train_importances, delimiter=',', header='Feature Importance (train)')
+        # np.savetxt(os.path.join('results', f'val_importances_{mode}.txt'),
+        #            val_importances, delimiter=',', header='Feature Importance (val)')
+
+        # # Calculate the mean importance values and sort the indices
+        # sorted_indices = train_importances.mean(axis=1).argsort()
+
+        # # Sort both the columns and importances based on sorted indices
+        # sorted_columns = X_train.columns[sorted_indices]
+        # sorted_importances = train_importances[sorted_indices]
+
+        # # Plot the whisker plots (train)
+        # plt.figure(figsize=(10, 6))
+        # plt.boxplot(sorted_importances.T, vert=False)
+        # plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
+        # plt.xlabel('Importance')
+        # plt.title('Feature Importances (Permutation)')
+        # plt.tight_layout()
+        # plt.savefig(os.path.join('results',f'train_importances_{mode}.png'))
+
+        # # Calculate the mean importance values and sort the indices
+        # sorted_indices = val_importances.mean(axis=1).argsort()
+
+        # # Sort both the columns and importances based on sorted indices
+        # sorted_columns = X_val.columns[sorted_indices]
+        # sorted_importances = val_importances[sorted_indices]
+
+        # # Plot the whisker plots (val)
+        # plt.figure(figsize=(10, 6))
+        # plt.boxplot(sorted_importances.T, vert=False)
+        # plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
+        # plt.xlabel('Importance')
+        # plt.title('Feature Importances (Permutation)')
+        # plt.tight_layout()
+        # plt.savefig(os.path.join('results',f'val_importances_{mode}.png'))
+
     # Calculate the weighted average
     avg_stn = list(cfg.trn_stn if cfg.temporal_split else cfg.tst_stn)
     df_nnse.loc['AVERAGE (test)'] = (df_nnse.loc[avg_stn].T * n_obs[avg_stn]).sum(axis=1) / n_obs[avg_stn].sum()
