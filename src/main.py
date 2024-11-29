@@ -9,30 +9,30 @@ from modules.simulation_analysis import simulation_analysis
 # Record starting run time
 start_time = time.time()
 
-# # Load and process the data
-# print('Loading and processing the data...')
-# data_processing()
-# print('Successfully loaded and processed the data...')
+# Load and process the data
+print('Loading and processing the data...')
+data_processing()
+print('Successfully loaded and processed the data...')
 
-# # Find the best hyperparameters for the models
-# print('Finding the best model type and hyperparameters...')
-# model_selection()
-# print('Successfully found the best model type and hyperparameters...')
+# Find the best hyperparameters for the models
+print('Finding the best model type and hyperparameters...')
+model_selection()
+print('Successfully found the best model type and hyperparameters...')
 
-# # Train the models with the different setups
-# print('Training and evaluating models...')
-# model_training()
-# print('Successfully trained and evaluated models...')
+# Train the models with the different setups
+print('Training and evaluating models...')
+model_training()
+print('Successfully trained and evaluated models...')
 
 # Simulate SWE using ML for each station
 print('Performing forward simulation...')
 forward_simulation()
 print('Successfully performed forward simulation...')
 
-# # Analyze the simulation results
-# print('Analyzing simulation results...')
-# simulation_analysis()
-# print('Successfully analyzed simulation results...')
+# Analyze the simulation results
+print('Analyzing simulation results...')
+simulation_analysis()
+print('Successfully analyzed simulation results...')
 
 # Print execution time
 end_time = time.time()

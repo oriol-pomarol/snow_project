@@ -115,7 +115,6 @@ def forward_simulation():
 
                 # If not predicting the residual, use the predicted value directly
                 else:
-                    print('no residual')
                     pred_dswe = pred_y
 
                 # Ensure that the predicted SWE is non-negative

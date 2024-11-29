@@ -17,6 +17,7 @@ class Model:
         else:
             raise ValueError(f"Invalid model setup: {valid_mode}.")
         self.model = None
+        self.classifier_model = None
         self.model_type = None
         self.hyperparameters = None
         self.best_epochs = []
@@ -98,8 +99,8 @@ class Model:
             joblib.dump(self.model, path_dir / f'{model_name}.joblib')
         else:
             self.model.save(path_dir / f'{model_name}.h5')
-
-        joblib.dump(self.classifier_model, path_dir / f'{model_name}_classifier.joblib')
+        if self.mode in ['cro_vars', 'err_corr']:
+            joblib.dump(self.classifier_model, path_dir / f'{model_name}_classifier.joblib')
     
     def load_model(self, path_dir=None, suffix=''):
         if path_dir is None:
@@ -109,8 +110,8 @@ class Model:
             self.model = joblib.load(path_dir / f'{model_name}.joblib')
         else:
             self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
-
-        self.classifier_model = joblib.load(path_dir / f'{model_name}_classifier.joblib')
+        if self.mode in ['cro_vars', 'err_corr']:
+            self.classifier_model = joblib.load(path_dir / f'{model_name}_classifier.joblib')
 
     def create_classifier(self):
         self.classifier_model = None
@@ -132,10 +133,13 @@ class Model:
             if sample_weight is not None:
                 kwargs['sample_weight'] = kwargs['sample_weight'][mask]
         
-        # Drop the points where the target is zero
+        # If in error correction mode, fit the classifier first
+        if self.mode in ['cro_vars', 'err_corr']:
+            y = (y == 0).astype(int)
+            self.classifier_model.fit(X, y, **kwargs)
+        
+        # Drop the points for which the target is not zero
         mask = (y != 0).values
-
-        # Apply the mask
         X = X[mask]
         y = y[mask]
 
@@ -155,19 +159,6 @@ class Model:
         elif self.model_type == 'rf':
             self.model.fit(X, y, **kwargs)
             return None
-
-    def fit_classifier(self, X, y, **kwargs):
-
-        # Drop a percentage of the data, unless it is less than 100 samples
-        if len(X) > 100 and cfg.drop_data > 0:
-            mask = np.random.rand(len(X)) > cfg.drop_data
-            X = X[mask]
-            y = y[mask]
-
-        # Convert the target to binary and fit the classifier
-        y = (y == 0).astype(int)
-        self.classifier_model.fit(X, y, **kwargs)
-        return None
 
     def predict(self, X):
 
@@ -233,7 +224,8 @@ class Model:
 
         # Convert the target to binary and test the classifier
         y = (y == 0).astype(int)
-        y_pred = self.classifier_model.predict(X)
+        prob_pred = self.classifier_model.predict_proba(X)
+        y_pred = (prob_pred[:, 1] > cfg.prob_thresh).astype(int)
         accuracy = np.mean(y == y_pred)
         return accuracy
 
