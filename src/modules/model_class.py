@@ -99,7 +99,7 @@ class Model:
             joblib.dump(self.model, path_dir / f'{model_name}.joblib')
         else:
             self.model.save(path_dir / f'{model_name}.h5')
-        if self.mode in ['cro_vars', 'err_corr']:
+        if cfg.modes()[self.mode]["target"] == "res_mod_swe":
             joblib.dump(self.classifier_model, path_dir / f'{model_name}_classifier.joblib')
     
     def load_model(self, path_dir=None, suffix=''):
@@ -110,7 +110,7 @@ class Model:
             self.model = joblib.load(path_dir / f'{model_name}.joblib')
         else:
             self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
-        if self.mode in ['cro_vars', 'err_corr']:
+        if cfg.modes()[self.mode]["target"] == "res_mod_swe":
             self.classifier_model = joblib.load(path_dir / f'{model_name}_classifier.joblib')
 
     def create_classifier(self):
@@ -133,15 +133,14 @@ class Model:
             if sample_weight is not None:
                 kwargs['sample_weight'] = kwargs['sample_weight'][mask]
         
-        # If in error correction mode, fit the classifier first
-        if self.mode in ['cro_vars', 'err_corr']:
-            y = (y == 0).astype(int)
-            self.classifier_model.fit(X, y, **kwargs)
+        # If predicting residuals, fit the classifier first
+        if cfg.modes()[self.mode]["target"] == "res_mod_swe":
+            y_class = ~ y['is_potential_change'].values
+            self.classifier_model.fit(X, y_class, **kwargs)
         
-        # Drop the points for which the target is not zero
-        mask = (y != 0).values
-        X = X[mask]
-        y = y[mask]
+        # Take only the points where y is the potential change in swe
+        X = X[y['is_potential_change'].values]
+        y = y[y['is_potential_change'].values][cfg.modes()[self.mode]["target"]]
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
@@ -198,6 +197,10 @@ class Model:
             X = X[mask]
             y = y[mask]
 
+        # Drop the samples where the target is not a potential change
+        X = X[y['is_potential_change'].values]
+        y = y[y['is_potential_change'].values][[cfg.modes()[self.mode]["target"]]]
+
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X)
         if type(self.model) == dict:
@@ -222,11 +225,11 @@ class Model:
             X = X[mask]
             y = y[mask]
 
-        # Convert the target to binary and test the classifier
-        y = (y == 0).astype(int)
+        # Take the correct target and test the classifier
+        y_class = ~ y['is_potential_change'].values
         prob_pred = self.classifier_model.predict_proba(X)
-        y_pred = (prob_pred[:, 1] > cfg.prob_thresh).astype(int)
-        accuracy = np.mean(y == y_pred)
+        y_pred_class = (prob_pred[:, 1] > cfg.prob_thresh).astype(int)
+        accuracy = np.mean(y_class == y_pred_class)
         return accuracy
 
     def get_model_type(self):

@@ -74,7 +74,11 @@ def data_processing():
         df_data["delta_mod_swe"] = df_data["mod_swe"].diff().shift(-1)
 
         # Create new column representing the crocus-observed error
-        df_data["res_mod_swe"] = df_data["delta_mod_swe"] - df_data["delta_obs_swe"]      
+        df_data["res_mod_swe"] = df_data["delta_mod_swe"] - df_data["delta_obs_swe"]    
+
+        # Create a new column for the condition dswe != -swe (and the same for model)
+        df_data["is_potential_change"] = df_data["delta_obs_swe"] != -1 * df_data["obs_swe"]
+        df_data["is_potential_change_mod"] = df_data["delta_mod_swe"] != -1 * df_data["mod_swe"]
 
         # Save the DataFrame
         df_data.to_csv(paths.proc_data / f"df_{station_name}_lag_{cfg.lag}.csv")

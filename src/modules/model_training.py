@@ -50,16 +50,10 @@ def model_training():
 
         for s in range(n_splits):
             print(f'Starting split {s+1} of {n_splits}...')
-
-            # Filter the biased dSWE values unless predicting residuals
-            if not cfg.modes()[mode]["target"] == "res_mod_swe":
-                trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
-                aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
-                tst_dfs = [df.query('delta_obs_swe != -obs_swe') for df in tst_dfs]
             
             # Take the corresponding predictor and target variables
             X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-            y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+            y_obs = [df[[mode_vars['target'], 'is_potential_change']] for df in trn_dfs]
 
             # Split the data into training and test sets
             if cfg.temporal_split:
@@ -69,12 +63,12 @@ def model_training():
                 X_trn, y_trn = X_obs, y_obs
                 if mode == 'data_aug':
                     X_tst = [tst_dfs[s].filter(regex=mode_vars['predictors']),]
-                    y_tst = [tst_dfs[s][[mode_vars['target']]],]
+                    y_tst = [tst_dfs[s][[mode_vars['target'], 'is_potential_change']],]
                     suffix = f'aug_split_{s}'
 
                 else:
                     X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-                    y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+                    y_tst = [df[[mode_vars['target'], 'is_potential_change']] for df in tst_dfs]
                     suffix = ''
 
             # Take the augmented data if in the corresponding mode
@@ -82,10 +76,10 @@ def model_training():
             if mode == 'data_aug':
                 if cfg.temporal_split:
                     X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-                    y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+                    y_aug = [df[['delta_mod_swe', 'is_potential_change_mod']] for df in aug_dfs]
                 else:
                     X_aug = [df.filter(regex='^met_') for i, df in enumerate(aug_dfs) if i != s]
-                    y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
+                    y_aug = [df[['delta_mod_swe', 'is_potential_change_mod']] for i, df in enumerate(aug_dfs) if i != s]
             
             # Train the model
             model = train_model(X_trn, y_trn, X_aug, y_aug, mode = mode)
@@ -99,8 +93,8 @@ def model_training():
                 y_tst_pred = model.predict_classifier(pd.concat(X_tst)).ravel()
 
                 # Concatenate the observed classes and convert to 1D numpy array
-                y_trn_class = (pd.concat(y_trn).values == 0).astype(int).ravel()
-                y_tst_class = (pd.concat(y_tst).values == 0).astype(int).ravel()
+                y_trn_class = pd.concat(y_trn)['is_potential_change'].values
+                y_tst_class = pd.concat(y_tst)['is_potential_change'].values
 
                 # Make a confusion matrix
                 confusion_matrix_trn = tf.math.confusion_matrix(y_trn_class, y_trn_pred).numpy()
@@ -118,18 +112,23 @@ def model_training():
                 plt.tight_layout()
                 plt.savefig(paths.figures / f'confusion_matrix_{mode}_{suffix}.png')           
 
+            # Take only the potential change values
+            mask_trn = pd.concat(y_trn)['is_potential_change'].values
+            mask_tst = pd.concat(y_tst)['is_potential_change'].values       
+
+            # Concatenate the observed values and convert to 1D numpy array
+            y_trn = pd.concat(y_obs)[mask_trn].values.ravel()
+            y_tst = pd.concat(y_tst)[mask_tst].values.ravel()
+
             # Predict the delta SWE for the training and test data
-            y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
-            y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
+            y_trn_pred = model.predict(pd.concat(X_obs)[mask_trn]).ravel()
+            y_tst_pred = model.predict(pd.concat(X_tst)[mask_tst]).ravel()
 
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
-                y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                mask_aug = pd.concat(y_aug)['is_potential_change_mod'].values
+                y_aug_pred = model.predict(pd.concat(X_aug)[mask_aug]).ravel()
                 y_aug = pd.concat(y_aug).values.ravel()
-
-            # Concatenate the observed values and convert to 1D numpy array
-            y_trn = pd.concat(y_obs).values.ravel()
-            y_tst = pd.concat(y_tst).values.ravel()
 
             # Append the predictions to the dataframes
             df_trn = pd.concat([df_trn, pd.DataFrame({'y_trn': y_trn, 'y_trn_pred': y_trn_pred, 'split': s})], ignore_index=True)
@@ -180,7 +179,7 @@ def train_model(X, y, X_aug, y_aug, mode):
     # Create the model and fit it to the data
     best_model.create_model(X_trn.shape[1], n_met_vars)
 
-    # Train the model
+    # Train the model(s)
     history = best_model.fit(X = X_trn, y = y_trn, sample_weight = sample_weight)
 
     # If the model is a neural network, save the training history

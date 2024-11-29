@@ -105,13 +105,17 @@ def forward_simulation():
                  
                 # In error correction, subtract the residual from the modelled dSWE
                 if cfg.modes()[mode]["target"] == "res_mod_swe":
-                    # Use the classifier model to predict if y is zero
+                    # Use the classifier model to predict if the final SWE is zero
                     is_zero = model.predict_classifier(row)
-                    pred_class_arr[row_idx, mode_idx] = is_zero
-                    if bool(is_zero):
-                        pred_y = 0
-                    mod_dswe = df_stn_clean.loc[df_index, "delta_mod_swe"]
-                    pred_dswe = mod_dswe - pred_y
+
+                    # If the classifier predicts zero, predict -SWE from the previous step
+                    if is_zero.ravel():
+                        pred_dswe = -pred_swe_arr[row_idx-1, mode_idx]
+                    
+                    # If the classifier predicts non-zero, predict with the regression model
+                    else:
+                        mod_dswe = df_stn_clean.loc[df_index, "delta_mod_swe"]
+                        pred_dswe = mod_dswe - pred_y
 
                 # If not predicting the residual, use the predicted value directly
                 else:
