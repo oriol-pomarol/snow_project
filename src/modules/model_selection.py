@@ -20,10 +20,6 @@ def model_selection():
     ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
     dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
     aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
-
-    # Filter the biased delta SWE values
-    trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
-    aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
     
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
@@ -39,19 +35,20 @@ def model_selection():
         
         # Take the corresponding predictor and target variables
         X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-        y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+        y_obs = [df[[mode_vars['target'], 'is_potential_change']] for df in trn_dfs]
         
         # Take the augmented data if in the corresponding mode
         if mode == 'data_aug':
             X_aug = [df.filter(regex='^met_') for df in aug_dfs]
-            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+            y_aug = [df[['delta_mod_swe', 'is_potential_change_mod']] for df in aug_dfs]
         else:
             X_aug, y_aug = None, None
 
         # Obtain the best model and save its hyperparameters
-        model = select_model(X = X_obs, y = y_obs, X_aug = X_aug,
+        if cfg.modes()[mode]["target"] == "res_mod_swe":
+            select_classifier(X = X_obs, y = y_obs, mode = mode)
+        select_model(X = X_obs, y = y_obs, X_aug = X_aug,
                             y_aug = y_aug, mode = mode)
-        model.save_hps()
         print(f'{mode} model selected successfully...')
 
     return
@@ -59,6 +56,10 @@ def model_selection():
 ###############################################################################
 # SELECT MODEL FUNCTION
 ###############################################################################
+
+def select_classifier(X, y, mode='dir_pred'):
+
+    return
 
 def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):    
 
@@ -123,7 +124,9 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
     df_losses.set_index('HP', inplace=True)
     df_losses.to_csv(paths.outputs / f'model_losses_{mode}.csv')
 
-    return best_model
+    best_model.save_hps()
+
+    return
 
 ###############################################################################
 
