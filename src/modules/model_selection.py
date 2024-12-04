@@ -135,11 +135,12 @@ def initialize_models(mode):
     # Initialize a list of models
     models = []
 
-    # Loop over each model type
-    for model_type in ['rf', 'nn', 'lstm']:
+    # Loop over each model type and hyperparameter combination
+    for model_type, hp_vals_dict in cfg.hyperparameters().items():
 
-        # Get the hyperparameters for the model type
-        hp_vals_dict = cfg.hyperparameters(model_type)
+        # If lag is 0, skip LSTM models
+        if cfg.lag == 0 and model_type == 'lstm':
+            continue
 
         # Set the epochs for the model
         if model_type == 'rf':
@@ -185,7 +186,7 @@ def station_validation_split(X, y, i):
 def temporal_validation_split(X, y, split_idx):
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_val, y_val = [], [], [], []

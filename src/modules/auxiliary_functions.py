@@ -245,7 +245,7 @@ def find_temporal_split_dates(dfs):
                 [tst_start_date, tst_end_date, val_start_date, val_end_date]
 
     # Save the train_test split dates as a csv
-    df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
+    df_split_dates.to_csv(paths.temp / 'split_dates.csv')
 
     return
 
