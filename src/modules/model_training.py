@@ -171,7 +171,8 @@ def train_model(X, y, X_aug, y_aug, mode):
     best_model.load_hps()
 
     # Create a classifier model and train it
-    best_model.create_classifier()
+    if cfg.modes()[mode]["target"] == "res_mod_swe":
+        best_model.create_classifier()
 
     # Count the number of meteo variables
     n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])

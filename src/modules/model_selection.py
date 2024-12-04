@@ -45,8 +45,6 @@ def model_selection():
             X_aug, y_aug = None, None
 
         # Obtain the best model and save its hyperparameters
-        if cfg.modes()[mode]["target"] == "res_mod_swe":
-            select_classifier(X = X_obs, y = y_obs, mode = mode)
         select_model(X = X_obs, y = y_obs, X_aug = X_aug,
                             y_aug = y_aug, mode = mode)
         print(f'{mode} model selected successfully...')
@@ -56,10 +54,6 @@ def model_selection():
 ###############################################################################
 # SELECT MODEL FUNCTION
 ###############################################################################
-
-def select_classifier(X, y, mode='dir_pred'):
-
-    return
 
 def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):    
 
