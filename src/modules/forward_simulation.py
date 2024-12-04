@@ -37,7 +37,7 @@ def forward_simulation():
 
     # Load the split dates
     if cfg.temporal_split:
-        split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+        split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Simulate SWE for each station
     for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
@@ -114,6 +114,6 @@ def forward_simulation():
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr, index=df_station_X.index, 
                               columns=cfg.modes().keys())
-        df_swe.to_csv(paths.temp_data / f'df_{station_name}_pred_swe.csv')
+        df_swe.to_csv(paths.temp / f'df_{station_name}_pred_swe.csv')
 
     return
