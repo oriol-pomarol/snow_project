@@ -17,9 +17,9 @@ def model_training():
     all_dfs = load_processed_data()
     
     # Store the training and augmentation dataframes and drop NAs
-    trn_dfs = [all_dfs[station].dropna() for station in cfg.trn_stn]
+    trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
     aug_dfs = [dropna_aug(all_dfs[stn]) for stn in cfg.aug_stn]
-    tst_dfs = [all_dfs[station].dropna() for station in cfg.tst_stn]
+    tst_dfs = [all_dfs[stn].dropna() for stn in cfg.tst_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
@@ -29,7 +29,7 @@ def model_training():
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
 
-    for mode, mode_vars in cfg.modes().items():
+    for mode, predictors in cfg.modes().items():
         print(f'Starting {mode} training...')
                     
         # Define the number of cross validation splits, with default 1
@@ -52,8 +52,8 @@ def model_training():
             print(f'Starting split {s+1} of {n_splits}...')
             
             # Take the corresponding predictor and target variables
-            X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-            y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+            X_obs = [df.filter(regex=predictors) for df in trn_dfs]
+            y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
 
             # Split the data into training and test sets
             if cfg.temporal_split:
@@ -62,23 +62,23 @@ def model_training():
             else:
                 X_trn, y_trn = X_obs, y_obs
                 if mode == 'data_aug':
-                    X_tst = [tst_dfs[s].filter(regex=mode_vars['predictors']),]
-                    y_tst = [tst_dfs[s][[mode_vars['target']]],]
+                    X_tst = [tst_dfs[s].filter(regex=predictors),]
+                    y_tst = [tst_dfs[s][['delta_obs_swe']],]
                     suffix = f'aug_split_{s}'
 
                 else:
-                    X_tst = [df.filter(regex=mode_vars['predictors']) for df in tst_dfs]
-                    y_tst = [df[[mode_vars['target']]] for df in tst_dfs]
+                    X_tst = [df.filter(regex=predictors) for df in tst_dfs]
+                    y_tst = [df[['delta_obs_swe']] for df in tst_dfs]
                     suffix = ''
 
             # Take the augmented data if in the corresponding mode
             X_aug, y_aug = None, None
             if mode == 'data_aug':
                 if cfg.temporal_split:
-                    X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+                    X_aug = [df.filter(regex=predictors) for df in aug_dfs]
                     y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
                 else:
-                    X_aug = [df.filter(regex='^met_') for i, df in enumerate(aug_dfs) if i != s]
+                    X_aug = [df.filter(regex=predictors) for i, df in enumerate(aug_dfs) if i != s]
                     y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
             
             # Train the model
@@ -281,7 +281,7 @@ def temporal_test_split(X, y, split_idx):
 ###############################################################################
 
 def dropna_aug(aug_df):
-    ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
+    ignore_cols = ["delta_obs_swe", "obs_swe"]
     dropna_cols = [col for col in aug_df.columns if col not in ignore_cols]
     clean_df = aug_df.dropna(subset=dropna_cols)
     return clean_df

@@ -47,7 +47,7 @@ def forward_simulation():
         predictor_cols = df_station.filter(regex='^(met_|cro_)').columns
         df_stn_clean = df_station.dropna(subset=predictor_cols)
 
-        # Take only a fraction of the data
+        # Take only a fraction of the data if specified
         df_stn_clean = df_stn_clean.iloc[:int(len(df_stn_clean) * (1 - cfg.drop_data))]
 
         # If in temporal split mode, append the split index to the dataframe
@@ -62,7 +62,7 @@ def forward_simulation():
         # Initialize a vector for the predicted SWE
         pred_swe_arr = np.zeros((df_stn_clean.shape[0], len(dict_models)))
 
-        for mode_idx, (mode, mode_vars) in enumerate(cfg.modes().items()):
+        for mode_idx, (mode, predictors) in enumerate(cfg.modes().items()):
             print(f"Mode {mode_idx + 1} of {len(dict_models)}.")
 
             # Get the correct model if in station split mode
@@ -79,7 +79,7 @@ def forward_simulation():
                 model = model_list[tst_station_idx]
             
             # Get the predictor data for the corresponding mode
-            df_station_X = df_stn_clean.filter(regex=mode_vars['predictors'])
+            df_station_X = df_stn_clean.filter(regex=predictors)
 
             # Get the number of rows in the dataframe
             n_rows = len(df_station_X)
@@ -97,15 +97,8 @@ def forward_simulation():
                 if cfg.temporal_split and (station_name in cfg.trn_stn):
                     model = model_list[df_stn_clean.loc[df_index, 'temporal_split']]
                 
-                # Predict the next SWE value
+                # Predict the next SWE value and ensure it is non-negative
                 pred_dswe = model.predict(row).ravel()
-                 
-                # In error correction, subtract the residual from the modelled dSWE
-                if cfg.modes()[mode]["target"] == "res_mod_swe":
-                    mod_dswe = df_stn_clean.loc[df_index, "delta_mod_swe"]
-                    pred_dswe = mod_dswe - pred_dswe
-
-                # Ensure that the predicted SWE is non-negative
                 pred_swe = max(pred_swe_arr[row_idx-1, mode_idx] + pred_dswe, 0)
 
                 # Save the predicted SWE
