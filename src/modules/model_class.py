@@ -3,6 +3,7 @@ import json
 import tensorflow as tf
 import numpy as np
 from tensorflow import keras
+import shap
 from keras.callbacks import Callback
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
@@ -19,6 +20,7 @@ class Model:
         self.model = None
         self.model_type = None
         self.hyperparameters = None
+        self.explainer = None
         self.best_epochs = []
 
     def set_hps(self, model_type, hyperparameters, epochs=None):
@@ -90,23 +92,42 @@ class Model:
                                                max_depth=self.hyperparameters.get('max_depth', None),
                                                max_samples=self.hyperparameters.get('max_samples', None))
             
-    def save_model(self, path_dir=None, suffix=''):
-        if path_dir is None:
-            path_dir = paths.models
+    def save_model(self, suffix=''):
+
+        # Include the suffix (if provided) to the mode to generate the model name
         model_name = '_'.join([self.mode, suffix]) if suffix else self.mode
+
+        # Save the model as a joblib file if it is a random forest
         if self.model_type == 'rf':
-            joblib.dump(self.model, path_dir / f'{model_name}.joblib')
+            joblib.dump(self.model, paths.models / f'{model_name}.joblib')
+        
+        # Save the model as a h5 file if it is a neural network
         else:
-            self.model.save(path_dir / f'{model_name}.h5')
+            self.model.save(paths.models / f'{model_name}.h5')
+        
+        # Save the explainer as a joblib file
+        self.explainer.save(paths.models / f'{model_name}_explainer.joblib')
     
-    def load_model(self, path_dir=None, suffix=''):
-        if path_dir is None:
-            path_dir = paths.models
+    def load_model(self, suffix=''):
+
+        # Include the suffix (if provided) to the mode to generate the model name
         model_name = '_'.join([self.mode, suffix]) if suffix else self.mode
+
+        # Load the model from a joblib file if it is a random forest
         if self.model_type == 'rf':
-            self.model = joblib.load(path_dir / f'{model_name}.joblib')
+            self.model = joblib.load(paths.models / f'{model_name}.joblib')
+            
+            # Load the explainer from a joblib file
+            self.explainer = shap.GPUTreeExplainer()
+            self.explainer.load(paths.models / f'{model_name}_explainer.joblib')
+        
+        # Load the model from a h5 file if it is a neural network
         else:
-            self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
+            self.model = keras.models.load_model(paths.models / f'{model_name}.h5')
+
+            # Load the explainer from a joblib file
+            self.explainer = shap.DeepExplainer()
+            self.explainer.load(paths.models / f'{model_name}_explainer.joblib')
 
     def fit(self, X, y, **kwargs):
 
@@ -125,17 +146,28 @@ class Model:
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X)
         
-        # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
+
+            # Define the callback to save the model at specific epochs and fit the data
             callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
             history = self.model.fit(X, y, epochs=max(self.epochs), callbacks=callbacks, **kwargs)
+
+            # Define the model as all the saved models (if more than one)
             if len(self.epochs) > 1:
                 self.model = callbacks[0].get_saved_models()
+
+            # Set the explainer as a DeepExplainer from SHAP
+            self.explainer = shap.DeepExplainer(self.model, X)
+
             return history
         
         # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
             self.model.fit(X, y, **kwargs)
+
+            # Set the explainer as a GPUTreeExplainer from SHAP
+            self.explainer = shap.GPUTreeExplainer(self.model)
+
             return None
 
     def predict(self, X):
