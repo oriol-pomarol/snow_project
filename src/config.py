@@ -22,7 +22,7 @@ class cfg:
     def modes():
         return {
             "dir_pred": "^met_", 
-            "err_corr": "^(met_|delta_mod_swe$)",
+            "post_prc": "^(met_|delta_mod_swe$)",
             "cro_vars": "^(met_|cro_|delta_mod_swe$)",
             "data_aug": "^met_", 
         }
