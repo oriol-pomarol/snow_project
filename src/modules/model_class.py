@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow import keras
 from keras.callbacks import Callback
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from config import paths, cfg
@@ -19,6 +20,7 @@ class Model:
         self.model = None
         self.model_type = None
         self.hyperparameters = None
+        self.scaler = None
         self.best_epochs = []
 
     def set_hps(self, model_type, hyperparameters, epochs=None):
@@ -98,6 +100,7 @@ class Model:
             joblib.dump(self.model, path_dir / f'{model_name}.joblib')
         else:
             self.model.save(path_dir / f'{model_name}.h5')
+            joblib.dump(self.scaler, paths.temp / f'{model_name}_scaler.joblib')
     
     def load_model(self, path_dir=None, suffix=''):
         if path_dir is None:
@@ -107,6 +110,7 @@ class Model:
             self.model = joblib.load(path_dir / f'{model_name}.joblib')
         else:
             self.model = keras.models.load_model(path_dir / f'{model_name}.h5')
+            self.scaler = joblib.load(paths.temp / f'{model_name}_scaler.joblib')
 
     def fit(self, X, y, **kwargs):
 
@@ -120,13 +124,18 @@ class Model:
             sample_weight = kwargs.get('sample_weight')
             if sample_weight is not None:
                 kwargs['sample_weight'] = kwargs['sample_weight'][mask]
-
-        # If it is an lstm model, preprocess the data accordingly
-        if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
+
+            # Normalize the input data
+            self.scaler = StandardScaler()
+            X = self.scaler.fit_transform(X)
+
+            # If it is an lstm model, preprocess the data accordingly
+            if self.model_type == 'lstm':
+                X = preprocess_data_lstm(X)
+
             callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
             history = self.model.fit(X, y, epochs=max(self.epochs), callbacks=callbacks, **kwargs)
             if len(self.epochs) > 1:
@@ -144,15 +153,21 @@ class Model:
         if len(X) == 0:
             return np.array([])
 
-        # If it is an lstm model, preprocess the data accordingly
-        if self.model_type == 'lstm':
-            X = preprocess_data_lstm(X)
-
-        # Predict the data; if it is not a random forest set the verbose to 0
+        # Predict the data directly if it is a random forest
         if self.model_type == 'rf':
             y_pred = self.model.predict(X)
+
         else:
+            # Normalize the input data
+            X = self.scaler.transform(X)
+
+            # If it is an lstm model, preprocess the data accordingly
+            if self.model_type == 'lstm':
+                X = preprocess_data_lstm(X)
+            
+            # Predict the data with verbose=0
             y_pred = self.model.predict(X, verbose=0)
+
         return y_pred
 
     def test(self, X, y):
@@ -163,8 +178,14 @@ class Model:
             X = X[mask]
             y = y[mask]
 
+        # Normalize the input data
+        if self.scaler is not None:
+            X = self.scaler.transform(X)
+
+        # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
             X = preprocess_data_lstm(X)
+
         if type(self.model) == dict:
             mse = {}
             for epoch, model in self.model.items():
