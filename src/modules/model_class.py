@@ -12,11 +12,7 @@ from .auxiliary_functions import preprocess_data_lstm
 
 class Model:
     def __init__(self, mode):
-        valid_mode = mode.lower() in ['dir_pred', 'err_corr', 'cro_vars', 'data_aug']
-        if valid_mode:
-            self.mode = mode.lower()
-        else:
-            raise ValueError(f"Invalid model setup: {valid_mode}.")
+        self.mode = mode.lower()
         self.model = None
         self.model_type = None
         self.hyperparameters = None

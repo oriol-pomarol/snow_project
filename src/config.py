@@ -21,22 +21,10 @@ class cfg:
     @staticmethod
     def modes():
         return {
-            "dir_pred": {
-                "predictors": "^met_", 
-                "target": "delta_obs_swe"
-            },
-            "err_corr": {
-                "predictors": "^met_", 
-                "target": "res_mod_swe"
-            },
-            "cro_vars": {
-                "predictors": "^(met_|cro_)", 
-                "target": "res_mod_swe"
-            },
-            "data_aug": {
-                "predictors": "^met_", 
-                "target": "delta_obs_swe"
-            },
+            "dir_pred": "^met_", 
+            "post_prc": "^(met_|delta_mod_swe$)",
+            "cro_vars": "^(met_|cro_|delta_mod_swe$)",
+            "data_aug": "^met_", 
         }
     
     # Set the hyperparameters to test for each model type
