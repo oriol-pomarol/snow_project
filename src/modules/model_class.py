@@ -2,6 +2,7 @@ import joblib
 import json
 import tensorflow as tf
 import numpy as np
+import pandas as pd
 from tensorflow import keras
 from keras.callbacks import Callback
 from sklearn.preprocessing import StandardScaler
@@ -126,7 +127,8 @@ class Model:
 
             # Normalize the input data
             self.scaler = StandardScaler()
-            X = self.scaler.fit_transform(X)
+            X_scaled = self.scaler.fit_transform(X)
+            X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
             # If it is an lstm model, preprocess the data accordingly
             if self.model_type == 'lstm':
@@ -155,7 +157,8 @@ class Model:
 
         else:
             # Normalize the input data
-            X = self.scaler.transform(X)
+            X_scaled = self.scaler.transform(X)
+            X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
             # If it is an lstm model, preprocess the data accordingly
             if self.model_type == 'lstm':
@@ -176,7 +179,8 @@ class Model:
 
         # Normalize the input data
         if self.scaler is not None:
-            X = self.scaler.transform(X)
+            X_scaled = self.scaler.transform(X)
+            X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
         # If it is an lstm model, preprocess the data accordingly
         if self.model_type == 'lstm':
