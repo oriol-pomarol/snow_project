@@ -91,7 +91,9 @@ def model_training():
 
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
-                y_aug_pred = model.predict(pd.concat(X_aug)).ravel()
+                X_aug_df = pd.concat(X_aug)
+                X_aug_df = X_aug_df.rename(columns={X_aug_df.columns[-1] : X_trn[0].columns[-1]})
+                y_aug_pred = model.predict(X_aug_df).ravel()
                 y_aug = pd.concat(y_aug).values.ravel()
 
             # Concatenate the observed values and convert to 1D numpy array

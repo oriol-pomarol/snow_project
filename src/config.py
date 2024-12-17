@@ -3,8 +3,8 @@ from pathlib import Path
 
 @dataclass()
 class cfg:
-    lag: tuple = 1
-    rel_weight: tuple = 1
+    lag: int = 14
+    rel_weight: float = 1
     temporal_split: bool = False
     n_temporal_splits: int = 5
     val_ratio: float = 1/3
@@ -21,10 +21,10 @@ class cfg:
     @staticmethod
     def modes():
         return {
-            "dir_pred": "^met_", 
-            "post_prc": "^(met_|delta_mod_swe$)",
-            "cro_vars": "^(met_|cro_|delta_mod_swe$)",
-            "data_aug": "^met_", 
+            "dir_pred": "^(met_|obs_swe$)", 
+            "post_prc": "^(met_|delta_mod_swe$|obs_swe$|mod_swe$)",
+            "cro_vars": "^(met_|cro_|delta_mod_swe$|obs_swe$|mod_swe$)",
+            "data_aug": "^(met_|obs_swe$)", 
         }
     
     # Set the hyperparameters to test for each model type
