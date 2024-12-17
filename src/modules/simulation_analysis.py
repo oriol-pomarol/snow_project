@@ -182,7 +182,7 @@ def mean_bias_error(obs, sim):
     return np.mean(obs - sim)
 
 def nash_sutcliffe_efficiency(obs, sim):
-    if len(obs) < 1:
+    if len(obs) < 2:
         return float('nan')
     return 1 - np.sum((obs - sim) ** 2) / np.sum((obs - np.mean(obs)) ** 2)
 
