@@ -17,7 +17,7 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    ignore_cols = ["delta_obs_swe", "obs_swe", "res_mod_swe"]
+    ignore_cols = ["delta_obs_swe", "obs_swe"]
     dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
     aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
 
@@ -32,18 +32,18 @@ def model_selection():
     if cfg.temporal_split:
         find_temporal_split_dates(trn_dfs)
 
-    for mode, mode_vars in cfg.modes().items():
+    for mode, predictors in cfg.modes().items():
     
         # Obtain the best model for the direct prediction setup
         print(f'Starting {mode} model selection...')
         
         # Take the corresponding predictor and target variables
-        X_obs = [df.filter(regex=mode_vars['predictors']) for df in trn_dfs]
-        y_obs = [df[[mode_vars['target']]] for df in trn_dfs]
+        X_obs = [df.filter(regex=predictors) for df in trn_dfs]
+        y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
         
         # Take the augmented data if in the corresponding mode
         if mode == 'data_aug':
-            X_aug = [df.filter(regex='^met_') for df in aug_dfs]
+            X_aug = [df.filter(regex=predictors) for df in aug_dfs]
             y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
         else:
             X_aug, y_aug = None, None
@@ -132,11 +132,12 @@ def initialize_models(mode):
     # Initialize a list of models
     models = []
 
-    # Loop over each model type
-    for model_type in ['rf', 'nn', 'lstm']:
+    # Loop over each model type and hyperparameter combination
+    for model_type, hp_vals_dict in cfg.hyperparameters().items():
 
-        # Get the hyperparameters for the model type
-        hp_vals_dict = cfg.hyperparameters(model_type)
+        # If lag is 0, skip LSTM models
+        if cfg.lag == 0 and model_type == 'lstm':
+            continue
 
         # Set the epochs for the model
         if model_type == 'rf':
@@ -182,7 +183,7 @@ def station_validation_split(X, y, i):
 def temporal_validation_split(X, y, split_idx):
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_val, y_val = [], [], [], []

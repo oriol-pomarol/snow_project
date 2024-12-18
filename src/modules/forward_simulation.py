@@ -42,7 +42,7 @@ def forward_simulation():
 
     # Load the split dates
     if cfg.temporal_split:
-        split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+        split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Simulate SWE for each station
     for station_idx, (station_name, df_station) in enumerate(dict_dfs.items()):
@@ -63,7 +63,7 @@ def forward_simulation():
         # Initialize a vector for the predicted SWE
         pred_swe_arr = np.zeros((df_station.shape[0], len(dict_models)))
 
-        for mode_idx, (mode, mode_vars) in enumerate(cfg.modes().items()):
+        for mode_idx, (mode, predictors) in enumerate(cfg.modes().items()):
             print(f"Mode {mode_idx + 1} of {len(dict_models)}.")
 
             # Get the correct model if in station split mode
@@ -80,42 +80,40 @@ def forward_simulation():
                 model = model_list[tst_station_idx]
             
             # Get the predictor data for the corresponding mode
-            df_station_X = df_station.filter(regex=mode_vars['predictors'])
+            df_station_X = df_station.filter(regex=predictors)
 
             # Get the number of rows in the dataframe
             n_rows = len(df_station_X)
 
             # Predict each row in the dataframe iteratively
-            for row_idx, (df_index, row_serie) in enumerate(df_station_X.iterrows()):
-                row = row_serie.to_frame().T
+            for row_idx, (df_index, row_serie) in enumerate(df_station_X[:-1].iterrows()):
 
                 # Print progress
                 if row_idx % (n_rows // 5) == 0:
                     progress_pct = row_idx * 100 / n_rows
                     print(f"Progress: {progress_pct:.0f}% completed.")
 
+                # Convert the row to a dataframe
+                row = row_serie.to_frame().T
+
+                # Add the previous SWE value to the row
+                row['obs_swe'] = pred_swe_arr[row_idx, mode_idx]
+
                 # Decide which model to use in temporal split mode
                 if cfg.temporal_split and (station_name in cfg.trn_stn):
                     model = model_list[df_station.loc[df_index, 'temporal_split']]
                 
-                # Predict the next SWE value
+                # Predict the next SWE value and ensure it is non-negative
                 pred_dswe = model.predict(row).ravel()
-                 
-                # In error correction, subtract the residual from the modelled dSWE
-                if cfg.modes()[mode]["target"] == "res_mod_swe":
-                    mod_dswe = df_station.loc[df_index, "delta_mod_swe"]
-                    pred_dswe = mod_dswe - pred_dswe
-
-                # Ensure that the predicted SWE is non-negative
-                pred_swe = max(pred_swe_arr[row_idx-1, mode_idx] + pred_dswe, 0)
+                pred_swe = max(pred_swe_arr[row_idx, mode_idx] + pred_dswe, 0)
 
                 # Save the predicted SWE
-                pred_swe_arr[row_idx, mode_idx] = pred_swe
+                pred_swe_arr[row_idx + 1, mode_idx] = pred_swe
     
         # Save the simulated SWE as a dataframe
         df_swe = pd.DataFrame(pred_swe_arr, index=df_station_X.index, 
                               columns=cfg.modes().keys())
-        df_swe.to_csv(paths.temp_data / f'df_{station_name}_pred_swe.csv')
+        df_swe.to_csv(paths.temp / f'df_{station_name}_pred_swe.csv')
 
     # Gather the data from the training and test stations used for forward simulation
     trn_dfs = [dict_dfs[station] for station in cfg.trn_stn]
