@@ -115,25 +115,36 @@ def forward_simulation():
                               columns=cfg.modes().keys())
         df_swe.to_csv(paths.temp / f'df_{station_name}_pred_swe.csv')
 
-    # Gather the data from the training and test stations used for forward simulation
-    trn_dfs = [dict_dfs[station] for station in cfg.trn_stn]
-    tst_dfs = [dict_dfs[station] for station in cfg.tst_stn]
 
     # Loop over each mode and split to calculate the feature importances
-    for mode, mode_vars in cfg.modes().items():
+    for mode_idx, (mode, predictors) in enumerate(cfg.modes().items()):
         models = dict_models[mode]
+
+        # Get the training and test data for the SHAP analysis
+        trn_dfs = [dict_dfs[station] for station in cfg.trn_stn]
+        tst_dfs = [dict_dfs[station] for station in cfg.tst_stn]
+
+        # Take only the same length as the predicted SWE
+        trn_dfs = [df.iloc[:len(pred_swe_arr)].copy() for df in trn_dfs]
+        tst_dfs = [df.iloc[:len(pred_swe_arr)].copy for df in tst_dfs]
+
+        # Add the previous SWE value to the training and test data from pred_swe_arr
+        for i in range(len(trn_dfs)):
+            trn_dfs[i].loc[:, 'obs_swe'] = pred_swe_arr[:, mode_idx]
+        for i in range(len(tst_dfs)):
+            tst_dfs[i].loc[:, 'obs_swe'] = pred_swe_arr[:, mode_idx]
+
         for s, model in enumerate(models):
 
-            # Take the corresponding data
+            # Take the corresponding training and test data
+            X_trn = pd.concat([df.filter(regex=predictors) for df in trn_dfs])
             if cfg.temporal_split:
-                X = pd.concat([dict_dfs[station] for station in cfg.trn_stn])
                 y = None
-                X_trn, X_tst, _, _ = temporal_test_split(X, y, s)
+                X_trn, X_tst, _, _ = temporal_test_split(X_trn, y, s)
             else:
-                X_trn = pd.concat(trn_dfs)
-                X_tst = pd.concat(tst_dfs)
+                X_tst = tst_dfs[s].filter(regex=predictors)
 
-            # SHAP IMPORTANCE
+            # Train the SHAP explainer and get the explanation
             explainer = shap.Explainer(model.predict, X_trn)
             explanation = explainer(X_tst)
 
@@ -167,7 +178,7 @@ def dropna_aug(df): # Change function name, add to auxiliary_functions.py!!!
 def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp_data / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_tst, y_tst = [], [], [], []
@@ -196,7 +207,7 @@ def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
 def save_explanation_to_csv(explanation, mode, split_idx): # Add to auxiliary_functions.py!!!
 
     # Make a folder for the SHAP values
-    shap_explanations_path = paths.temp_data / 'shap_explanations'
+    shap_explanations_path = paths.temp / 'shap_explanations'
     shap_explanations_path.mkdir(exist_ok=True)
 
     # Get the SHAP values and save them to a csv file
