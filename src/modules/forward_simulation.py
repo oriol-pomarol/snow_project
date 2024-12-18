@@ -121,7 +121,6 @@ def forward_simulation():
     trn_dfs = [dict_dfs[station] for station in cfg.trn_stn]
     tst_dfs = [dict_dfs[station] for station in cfg.tst_stn]
 
-
     # Loop over each mode and split to calculate the feature importances
     for mode, mode_vars in cfg.modes().items():
         models = dict_models[mode]
@@ -129,66 +128,29 @@ def forward_simulation():
 
             # Take the corresponding data
             if cfg.temporal_split:
-                X = pd.concatenate([dict_dfs[station] for station in cfg.trn_stn])
-                y = None # ADD Y HERE
-                X_trn, X_tst, y_trn, y_tst = temporal_test_split(X, y, s)
+                X = pd.concat([dict_dfs[station] for station in cfg.trn_stn])
+                y = None
+                X_trn, X_tst, _, _ = temporal_test_split(X, y, s)
             else:
-                X_trn = pd.concatenate(trn_dfs)
-                X_tst = pd.concatenate(tst_dfs)
+                X_trn = pd.concat(trn_dfs)
+                X_tst = pd.concat(tst_dfs)
 
             # SHAP IMPORTANCE
             explainer = shap.Explainer(model.predict, X_trn)
             explanation = explainer(X_tst)
 
+            # Plot the absolute SHAP values as bar plots
             plt.figure(figsize=(16,9))
             shap.plots.bar(explanation, max_display=15, show=False)
             plt.savefig(paths.figures / f'val_shap_bar_{mode}_{s}.png', bbox_inches="tight")
 
+            # Plot the SHAP values as violin plots
             plt.figure(figsize=(16,9))
             shap.plots.violin(explanation, max_display=15, show=False)
             plt.savefig(paths.figures / f'val_shap_vio_{mode}_{s}.png', bbox_inches="tight")
 
-            ## PERMUTATION IMPORTANCE
-            # train_importances = permutation_importance(model, X_train, y_train, scoring= 'neg_mean_squared_error',
-            #                                            n_repeats = 50, random_state=10).importances
-            # val_importances = permutation_importance(model, X_val, y_val, scoring= 'neg_mean_squared_error',
-            #                                          n_repeats = 50, random_state=10).importances
-            # np.savetxt(os.path.join('results', f'train_importances_{mode}.txt'),
-            #            train_importances, delimiter=',', header='Feature Importance (train)')
-            # np.savetxt(os.path.join('results', f'val_importances_{mode}.txt'),
-            #            val_importances, delimiter=',', header='Feature Importance (val)')
-
-            # # Calculate the mean importance values and sort the indices
-            # sorted_indices = train_importances.mean(axis=1).argsort()
-
-            # # Sort both the columns and importances based on sorted indices
-            # sorted_columns = X_train.columns[sorted_indices]
-            # sorted_importances = train_importances[sorted_indices]
-
-            # # Plot the whisker plots (train)
-            # plt.figure(figsize=(10, 6))
-            # plt.boxplot(sorted_importances.T, vert=False)
-            # plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
-            # plt.xlabel('Importance')
-            # plt.title('Feature Importances (Permutation)')
-            # plt.tight_layout()
-            # plt.savefig(os.path.join('results',f'train_importances_{mode}.png'))
-
-            # # Calculate the mean importance values and sort the indices
-            # sorted_indices = val_importances.mean(axis=1).argsort()
-
-            # # Sort both the columns and importances based on sorted indices
-            # sorted_columns = X_val.columns[sorted_indices]
-            # sorted_importances = val_importances[sorted_indices]
-
-            # # Plot the whisker plots (val)
-            # plt.figure(figsize=(10, 6))
-            # plt.boxplot(sorted_importances.T, vert=False)
-            # plt.yticks(range(1, len(sorted_columns) + 1), sorted_columns)
-            # plt.xlabel('Importance')
-            # plt.title('Feature Importances (Permutation)')
-            # plt.tight_layout()
-            # plt.savefig(os.path.join('results',f'val_importances_{mode}.png'))
+            # Save the explanation object to multiple csv files
+            save_explanation_to_csv(explanation, mode, s)
 
     return
 
@@ -230,3 +192,25 @@ def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
         y_tst.append(y[i].loc[tst_cond])          
 
     return X_trn, X_tst, y_trn, y_tst
+
+###############################################################################
+
+def save_explanation_to_csv(explanation, mode, split_idx): # Add to auxiliary_functions.py!!!
+
+    # Make a folder for the SHAP values
+    shap_explanations_path = paths.temp_data / 'shap_explanations'
+    shap_explanations_path.mkdir(exist_ok=True)
+
+    # Get the SHAP values and save them to a csv file
+    np.savetxt(shap_explanations_path / f'df_{mode}_shap_{split_idx}.csv',
+               explanation.values, delimiter=',')
+
+    # Get the SHAP base values and save them to a csv file
+    np.savetxt(shap_explanations_path / f'df_{mode}_base_{split_idx}.csv',
+               explanation.base_values, delimiter=',')
+    
+    # Get the SHAP data and save them to a csv file
+    np.savetxt(shap_explanations_path / f'df_{mode}_data_{split_idx}.csv',
+               explanation.data, delimiter=',')
+    
+    return

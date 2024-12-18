@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
-import shap
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sklearn.metrics import mean_squared_error
-from sklearn.inspection import permutation_importance
 from config import cfg, paths
 
 def simulation_analysis():
