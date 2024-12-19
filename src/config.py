@@ -9,6 +9,7 @@ class cfg:
     n_temporal_splits: int = 5
     val_ratio: float = 1/3
     drop_data: float = 0.0
+    drop_data_expl: float = 0.0
     epochs: tuple = (25, 50, 75, 100)
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")

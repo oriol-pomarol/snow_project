@@ -151,9 +151,17 @@ def forward_simulation():
                 X_trn, X_tst = trn_dfs, tst_dfs[s]
                 X_trn = pd.concat(X_trn)
 
+            # Randomly sample the test data for the explanations if specified
+            X_tst_explain = X_tst.sample(frac=1 - cfg.drop_data_expl)
+                
             # Train the SHAP explainer and get the explanation
             explainer = shap.Explainer(model.predict, X_trn)
-            explanation = explainer(X_tst)
+            try:
+                explanation = explainer(X_tst_explain)
+            except Exception as e:
+                print(e)
+                print("Re-running the SHAP explainer with check_additivity=False.")
+                explanation = explainer(X_tst, check_additivity=False)
 
             # Append the explanation to the FeatureImportances object
             feature_importances.append_explanation(explanation, s)
