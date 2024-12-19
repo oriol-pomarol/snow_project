@@ -89,9 +89,10 @@ def forward_simulation():
             for row_idx, (df_index, row_serie) in enumerate(df_station_X[:-1].iterrows()):
 
                 # Print progress
-                if row_idx % (n_rows // 5) == 0:
-                    progress_pct = row_idx * 100 / n_rows
-                    print(f"Progress: {progress_pct:.0f}% completed.")
+                if n_rows >= 10:
+                    if row_idx % (n_rows // 5) == 0:
+                        progress_pct = row_idx * 100 / n_rows
+                        print(f"Progress: {progress_pct:.0f}% completed.")
 
                 # Convert the row to a dataframe
                 row = row_serie.to_frame().T
@@ -115,18 +116,21 @@ def forward_simulation():
                               columns=cfg.modes().keys())
         df_swe.to_csv(paths.temp / f'df_{station_name}_pred_swe.csv')
 
+    # Make a folder for the SHAP values
+    shap_explanations_path = paths.temp / 'shap_explanations'
+    shap_explanations_path.mkdir(exist_ok=True)
 
     # Loop over each mode and split to calculate the feature importances
     for mode_idx, (mode, predictors) in enumerate(cfg.modes().items()):
         models = dict_models[mode]
 
         # Get the training and test data for the SHAP analysis
-        trn_dfs = [dict_dfs[station] for station in cfg.trn_stn]
-        tst_dfs = [dict_dfs[station] for station in cfg.tst_stn]
+        trn_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.trn_stn]
+        tst_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.tst_stn]
 
         # Take only the same length as the predicted SWE
         trn_dfs = [df.iloc[:len(pred_swe_arr)].copy() for df in trn_dfs]
-        tst_dfs = [df.iloc[:len(pred_swe_arr)].copy for df in tst_dfs]
+        tst_dfs = [df.iloc[:len(pred_swe_arr)].copy() for df in tst_dfs]
 
         # Add the previous SWE value to the training and test data from pred_swe_arr
         for i in range(len(trn_dfs)):
@@ -134,32 +138,31 @@ def forward_simulation():
         for i in range(len(tst_dfs)):
             tst_dfs[i].loc[:, 'obs_swe'] = pred_swe_arr[:, mode_idx]
 
-        for s, model in enumerate(models):
+        # Initialize the FeatureImportances object
+        feature_importances = FeatureImportances(mode, trn_dfs[0].columns)
 
+        for s, model in enumerate(models):
             # Take the corresponding training and test data
-            X_trn = pd.concat([df.filter(regex=predictors) for df in trn_dfs])
             if cfg.temporal_split:
                 y = None
-                X_trn, X_tst, _, _ = temporal_test_split(X_trn, y, s)
+                X_trn, X_tst, _, _ = temporal_test_split(trn_dfs, y, s)
+                X_trn, X_tst = pd.concat(X_trn), pd.concat(X_tst)
             else:
-                X_tst = tst_dfs[s].filter(regex=predictors)
+                X_trn, X_tst = trn_dfs, tst_dfs[s]
+                X_trn = pd.concat(X_trn)
 
             # Train the SHAP explainer and get the explanation
             explainer = shap.Explainer(model.predict, X_trn)
             explanation = explainer(X_tst)
 
-            # Plot the absolute SHAP values as bar plots
-            plt.figure(figsize=(16,9))
-            shap.plots.bar(explanation, max_display=15, show=False)
-            plt.savefig(paths.figures / f'val_shap_bar_{mode}_{s}.png', bbox_inches="tight")
+            # Append the explanation to the FeatureImportances object
+            feature_importances.append_explanation(explanation, s)
+            
+        # Save the explanation object to multiple csv files
+        feature_importances.save_to_csv()
 
-            # Plot the SHAP values as violin plots
-            plt.figure(figsize=(16,9))
-            shap.plots.violin(explanation, max_display=15, show=False)
-            plt.savefig(paths.figures / f'val_shap_vio_{mode}_{s}.png', bbox_inches="tight")
-
-            # Save the explanation object to multiple csv files
-            save_explanation_to_csv(explanation, mode, s)
+        # Plot the feature importances
+        feature_importances.plot_feature_importances()
 
     return
 
@@ -204,22 +207,64 @@ def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
 
 ###############################################################################
 
-def save_explanation_to_csv(explanation, mode, split_idx): # Add to auxiliary_functions.py!!!
+class FeatureImportances:
 
-    # Make a folder for the SHAP values
-    shap_explanations_path = paths.temp / 'shap_explanations'
-    shap_explanations_path.mkdir(exist_ok=True)
+    def __init__(self, mode, columns):
+        print(f"Initializing feature importances for mode {mode}.")
+        self.mode = mode
+        self.columns = columns
+        self.shap_values = pd.DataFrame(columns=['split_idx'] + list(columns))
+        self.base_values = pd.DataFrame(columns=['split_idx', 'base_value'])
+        self.data = pd.DataFrame(columns=['split_idx'] + list(columns))
 
-    # Get the SHAP values and save them to a csv file
-    np.savetxt(shap_explanations_path / f'df_{mode}_shap_{split_idx}.csv',
-               explanation.values, delimiter=',')
+    def append_explanation(self, explanation, split_idx):
 
-    # Get the SHAP base values and save them to a csv file
-    np.savetxt(shap_explanations_path / f'df_{mode}_base_{split_idx}.csv',
-               explanation.base_values, delimiter=',')
-    
-    # Get the SHAP data and save them to a csv file
-    np.savetxt(shap_explanations_path / f'df_{mode}_data_{split_idx}.csv',
-               explanation.data, delimiter=',')
-    
-    return
+        print(f"Appending explanation for split {split_idx}.")
+        
+        # Convert explanation values to DataFrame and add split_idx column
+        explanation_values = pd.DataFrame(explanation.values, columns=self.columns)
+        explanation_values['split_idx'] = split_idx
+        
+        # Convert explanation base values to DataFrame and add split_idx column
+        explanation_base_values = pd.DataFrame(explanation.base_values, columns=['base_value'])
+        explanation_base_values['split_idx'] = split_idx
+        
+        # Convert explanation data to DataFrame and add split_idx column
+        explanation_data = pd.DataFrame(explanation.data, columns=self.columns)
+        explanation_data['split_idx'] = split_idx
+
+        # Concatenate the new explanation values with the existing DataFrames
+        self.shap_values = pd.concat([self.shap_values, explanation_values], ignore_index=True)
+        self.base_values = pd.concat([self.base_values, explanation_base_values], ignore_index=True)
+        self.data = pd.concat([self.data, explanation_data], ignore_index=True)
+
+    def plot_feature_importances(self):
+
+        # Drop the split_idx column from the DataFrames and convert to numpy arrays
+        shap_values = self.shap_values.drop(columns='split_idx').values
+        base_values = self.base_values.drop(columns='split_idx').values
+        data = self.data.drop(columns='split_idx').values
+
+        # Make an explanation object from the stored values
+        explanation = shap.Explanation(shap_values, base_values, data,
+                                       feature_names=self.columns)
+
+        # Plot the absolute SHAP values as bar plots
+        plt.figure(figsize=(16,9))
+        shap.plots.bar(explanation, max_display=15, show=False)
+        plt.savefig(paths.figures / f'shap_bar_{self.mode}.png', bbox_inches="tight")
+
+        # Plot the SHAP values as violin plots
+        plt.figure(figsize=(16,9))
+        shap.plots.violin(explanation, max_display=15, show=False)
+        plt.savefig(paths.figures / f'shap_vio_{self.mode}.png', bbox_inches="tight")
+
+    def save_to_csv(self):
+        print(f"Saving SHAP values to csv files for mode {self.mode}.")
+        # Save the DataFrames to csv files
+        self.shap_values.to_csv(paths.temp / 'shap_explanations' /
+                                f'df_{self.mode}_shap.csv', index=False)
+        self.base_values.to_csv(paths.temp / 'shap_explanations'
+                                / f'df_{self.mode}_base.csv', index=False)
+        self.data.to_csv(paths.temp / 'shap_explanations' /
+                         f'df_{self.mode}_data.csv', index=False)
