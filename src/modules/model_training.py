@@ -18,12 +18,13 @@ def model_training():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    aug_dfs = [dropna_aug(all_dfs[stn]) for stn in cfg.aug_stn]
+    aug_dfs = [all_dfs[stn] for stn in cfg.aug_stn]
+    aug_dfs = preprocess_aug_data(aug_dfs)
     tst_dfs = [all_dfs[stn].dropna() for stn in cfg.tst_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
-    aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
+    aug_dfs = [df.query('delta_obs_swe != -obs_swe') for df in aug_dfs]
     tst_dfs = [df.query('delta_obs_swe != -obs_swe') for df in tst_dfs]
     
     # Set a random seed for tensorflow
@@ -76,10 +77,10 @@ def model_training():
             if mode == 'data_aug':
                 if cfg.temporal_split:
                     X_aug = [df.filter(regex=predictors) for df in aug_dfs]
-                    y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+                    y_aug = [df[['delta_obs_swe']] for df in aug_dfs]
                 else:
                     X_aug = [df.filter(regex=predictors) for i, df in enumerate(aug_dfs) if i != s]
-                    y_aug = [df[['delta_mod_swe']] for i, df in enumerate(aug_dfs) if i != s]
+                    y_aug = [df[['delta_obs_swe']] for i, df in enumerate(aug_dfs) if i != s]
             
             # Train the model
             model = train_model(X_trn, y_trn, X_aug, y_aug, mode = mode)
@@ -92,7 +93,6 @@ def model_training():
             # If in data augmentation, predict delta SWE for the augmented data
             if mode == 'data_aug':
                 X_aug_df = pd.concat(X_aug)
-                X_aug_df = X_aug_df.rename(columns={X_aug_df.columns[-1] : X_trn[0].columns[-1]})
                 y_aug_pred = model.predict(X_aug_df).ravel()
                 y_aug = pd.concat(y_aug).values.ravel()
 
@@ -282,8 +282,17 @@ def temporal_test_split(X, y, split_idx):
 
 ###############################################################################
 
-def dropna_aug(aug_df):
-    ignore_cols = ["delta_obs_swe", "obs_swe"]
-    dropna_cols = [col for col in aug_df.columns if col not in ignore_cols]
-    clean_df = aug_df.dropna(subset=dropna_cols)
-    return clean_df
+def preprocess_aug_data(aug_dfs):
+
+    for df in aug_dfs:
+        # Drop the observed SWE and derived columns
+        df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
+
+        # Rename the modeled SWE and derived columns
+        df.rename(columns={'mod_swe': 'obs_swe',
+                           'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
+        
+        # Drop the rows with NAs
+        df.dropna(inplace=True)
+
+    return aug_dfs
