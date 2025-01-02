@@ -17,13 +17,12 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    ignore_cols = ["delta_obs_swe", "obs_swe"]
-    dropna_cols = [col for col in trn_dfs[0].columns if col not in ignore_cols]
-    aug_dfs = [all_dfs[stn].dropna(subset=dropna_cols) for stn in cfg.aug_stn]
+    aug_dfs = [all_dfs[stn] for stn in cfg.aug_stn]
+    aug_dfs = preprocess_aug_data(aug_dfs)
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
-    aug_dfs = [df.query('delta_mod_swe != -mod_swe') for df in aug_dfs]
+    aug_dfs = [df.query('delta_obs_swe != -obs_swe') for df in aug_dfs]
     
     # Set a random seed for tensorflow
     tf.random.set_seed(10)
@@ -44,7 +43,7 @@ def model_selection():
         # Take the augmented data if in the corresponding mode
         if mode == 'data_aug':
             X_aug = [df.filter(regex=predictors) for df in aug_dfs]
-            y_aug = [df[['delta_mod_swe']] for df in aug_dfs]
+            y_aug = [df[['delta_obs_swe']] for df in aug_dfs]
         else:
             X_aug, y_aug = None, None
 
@@ -214,3 +213,20 @@ def temporal_validation_split(X, y, split_idx):
     X_val, y_val = pd.concat(X_val), pd.concat(y_val)
 
     return X_trn, X_val, y_trn, y_val
+
+###############################################################################
+
+def preprocess_aug_data(aug_dfs):
+
+    for df in aug_dfs:
+        # Drop the observed SWE and derived columns
+        df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
+
+        # Rename the modeled SWE and derived columns
+        df.rename(columns={'mod_swe': 'obs_swe',
+                           'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
+        
+        # Drop the rows with NAs
+        df.dropna(inplace=True)
+
+    return aug_dfs

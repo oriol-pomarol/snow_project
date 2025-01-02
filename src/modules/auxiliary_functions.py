@@ -256,10 +256,6 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug):
     # Concatenate the augmented data
     X_aug = pd.concat(X_aug)
     y_aug = pd.concat(y_aug)
-
-    # Change the name of the augmented data to the target name
-    y_aug = y_aug.rename(columns={y_aug.columns[0] : y_trn.columns[0]})
-    X_aug = X_aug.rename(columns={X_aug.columns[-1] : X_trn.columns[-1]})
     
     # Calculate the training weights of the modelled data
     weight_aug = cfg.rel_weight * len(y_trn) / len(y_aug)
