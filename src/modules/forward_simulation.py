@@ -128,15 +128,25 @@ def forward_simulation():
         trn_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.trn_stn]
         tst_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.tst_stn]
 
-        # Take only the same length as the predicted SWE
-        trn_dfs = [df.iloc[:len(pred_swe_arr)].copy() for df in trn_dfs]
-        tst_dfs = [df.iloc[:len(pred_swe_arr)].copy() for df in tst_dfs]
+        # Get the predicted SWE for the SHAP analysis
+        trn_swe_dfs = [pd.read_csv(paths.temp / f'df_{station}_pred_swe.csv', index_col=0) for station in cfg.trn_stn]
+        tst_swe_dfs = [pd.read_csv(paths.temp / f'df_{station}_pred_swe.csv', index_col=0) for station in cfg.tst_stn]
 
-        # Add the previous SWE value to the training and test data from pred_swe_arr
-        for i in range(len(trn_dfs)):
-            trn_dfs[i].loc[:, 'obs_swe'] = pred_swe_arr[:, mode_idx]
-        for i in range(len(tst_dfs)):
-            tst_dfs[i].loc[:, 'obs_swe'] = pred_swe_arr[:, mode_idx]
+        # Convert the indices to datetime objects
+        trn_swe_dfs = [df.set_index(pd.to_datetime(df.index)) for df in trn_swe_dfs]
+        tst_swe_dfs = [df.set_index(pd.to_datetime(df.index)) for df in tst_swe_dfs]
+
+        # Check that the indices are the same for the predictors and SWE dataframes
+        assert all([trn_df.index.equals(trn_swe_df.index) for trn_df, trn_swe_df in zip(trn_dfs, trn_swe_dfs)]), \
+            "The indices of the training dataframes and the SWE dataframes are not the same."
+        assert all([tst_df.index.equals(tst_swe_df.index) for tst_df, tst_swe_df in zip(tst_dfs, tst_swe_dfs)]), \
+            "The indices of the test dataframes and the SWE dataframes are not the same."
+
+        # Replace obs_swe column in the training and test dataframes
+        for trn_df, trn_swe_df in zip(trn_dfs, trn_swe_dfs):
+            trn_df['obs_swe'] = trn_swe_df[mode]
+        for tst_df, tst_swe_df in zip(tst_dfs, tst_swe_dfs):
+            tst_df['obs_swe'] = tst_swe_df[mode]
 
         # Initialize the FeatureImportances object
         feature_importances = FeatureImportances(mode, trn_dfs[0].columns)
@@ -153,8 +163,11 @@ def forward_simulation():
 
             # Randomly sample the test data for the explanations if specified
             X_tst_explain = X_tst.sample(frac=1 - cfg.drop_data_expl)
+            if len(X_tst_explain) < 10:
+                X_tst_explain = X_tst.sample(n=10)
                 
             # Train the SHAP explainer and get the explanation
+            print(f"Training the SHAP explainer for mode {mode} and split {s}.")
             explainer = shap.Explainer(model.predict, X_trn)
             try:
                 explanation = explainer(X_tst_explain)
@@ -207,9 +220,10 @@ def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
                    (X[i].index < tst_end_date)
         # Append the training and test data
         X_trn.append(X[i].loc[trn_cond])
-        y_trn.append(y[i].loc[trn_cond])
         X_tst.append(X[i].loc[tst_cond])
-        y_tst.append(y[i].loc[tst_cond])          
+        if y is not None:
+            y_trn.append(y[i].loc[trn_cond])
+            y_tst.append(y[i].loc[tst_cond])          
 
     return X_trn, X_tst, y_trn, y_tst
 
