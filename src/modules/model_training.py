@@ -18,7 +18,7 @@ def model_training():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    aug_dfs = [all_dfs[stn] for stn in cfg.aug_stn]
+    aug_dfs = [all_dfs[stn].copy() for stn in cfg.aug_stn]
     aug_dfs = preprocess_aug_data(aug_dfs)
     tst_dfs = [all_dfs[stn].dropna() for stn in cfg.tst_stn]
 
@@ -87,7 +87,7 @@ def model_training():
             model.save_model(suffix=suffix)
 
             # Predict the delta SWE for the training and test data
-            y_trn_pred = model.predict(pd.concat(X_obs)).ravel()
+            y_trn_pred = model.predict(pd.concat(X_trn)).ravel()
             y_tst_pred = model.predict(pd.concat(X_tst)).ravel()
 
             # If in data augmentation, predict delta SWE for the augmented data
@@ -97,7 +97,7 @@ def model_training():
                 y_aug = pd.concat(y_aug).values.ravel()
 
             # Concatenate the observed values and convert to 1D numpy array
-            y_trn = pd.concat(y_obs).values.ravel()
+            y_trn = pd.concat(y_trn).values.ravel()
             y_tst = pd.concat(y_tst).values.ravel()
 
             # Append the predictions to the dataframes
