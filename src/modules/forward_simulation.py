@@ -122,7 +122,11 @@ def forward_simulation():
 
     # Loop over each mode and split to calculate the feature importances
     for mode_idx, (mode, predictors) in enumerate(cfg.modes().items()):
+
+        # Retrieve the models, and skip if it is an LSTM
         models = dict_models[mode]
+        if models[0].get_model_type() == 'lstm':
+            continue
 
         # Get the training and test data for the SHAP analysis
         trn_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.trn_stn]
