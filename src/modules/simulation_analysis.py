@@ -71,10 +71,18 @@ def simulation_analysis():
             for metric in metrics:
                 metric.calculate_and_append(dict_dfs[station_name], station_name)
    
+    # Filter the dictionary to include only the test stations
+    if cfg.temporal_split:
+        dict_test = {station: df for station, df in dict_dfs.items() if station in cfg.trn_stn}
+    else:
+        dict_test = {station: df for station, df in dict_dfs.items() if station in cfg.tst_stn}
+    
+    # Concatenate the DataFrames for the test stations
+    df_test = pd.concat(dict_test.values(), axis=0)
+
     # Calculate the metrics for all observations and save the results
-    df_all = pd.concat(dict_dfs.values(), axis=0)
     for metric in metrics:
-        metric.calculate_and_append(df_all, 'TOTAL')
+        metric.calculate_and_append(df_test, 'TEST')
         metric.save()
 
     # Plot the results
