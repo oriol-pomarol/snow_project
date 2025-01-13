@@ -48,6 +48,9 @@ def simulation_analysis():
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
+    # Start a list to store the test station's dataframes
+    test_stations_dfs = []
+
     # Find the nNSE and store them in the dataframe for each station
     for station_name in cfg.station_names:
 
@@ -65,20 +68,21 @@ def simulation_analysis():
             # Calculate and append the metrics
             for metric in metrics:
                 metric.calculate_and_append(df_test, station_name)
+
+            # Append df to the list of test stations if it is a train station
+            test_stations_dfs.append(df_test)
         
         # Calculate the nNSE for the whole station if in station split
         else:
             for metric in metrics:
                 metric.calculate_and_append(dict_dfs[station_name], station_name)
-   
-    # Filter the dictionary to include only the test stations
-    if cfg.temporal_split:
-        dict_test = {station: df for station, df in dict_dfs.items() if station in cfg.trn_stn}
-    else:
-        dict_test = {station: df for station, df in dict_dfs.items() if station in cfg.tst_stn}
+
+            # Append df to the list of test stations if it is a test station
+            if (not cfg.temporal_split) and (station_name in cfg.tst_stn):
+                test_stations_dfs.append(dict_dfs[station_name])
     
     # Concatenate the DataFrames for the test stations
-    df_test = pd.concat(dict_test.values(), axis=0)
+    df_test = pd.concat(test_stations_dfs)
 
     # Calculate the metrics for all observations and save the results
     for metric in metrics:
@@ -200,11 +204,11 @@ class Metric:
     def __init__(self, name, func, sim_modes):
         self.name = name
         self.func = func
-        self.df = pd.DataFrame(columns=sim_modes)
+        self.df = pd.DataFrame(columns = sim_modes + ['n'])
         self.sim_modes = sim_modes
 
     def calculate_and_append(self, data, name):
-        self.df.loc[name] = [self.func(data['obs_swe'], data[mode]) for mode in self.sim_modes]
+        self.df.loc[name] = [self.func(data['obs_swe'], data[mode]) for mode in self.sim_modes] + [len(data)]
 
     def save(self):
         self.df.to_csv(paths.outputs / f'fwd_sim_{self.name}.csv')
