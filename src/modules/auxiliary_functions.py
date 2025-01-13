@@ -245,7 +245,7 @@ def find_temporal_split_dates(dfs):
                 [tst_start_date, tst_end_date, val_start_date, val_end_date]
 
     # Save the train_test split dates as a csv
-    df_split_dates.to_csv(paths.temp_data / 'split_dates.csv')
+    df_split_dates.to_csv(paths.temp / 'split_dates.csv')
 
     return
 
@@ -256,9 +256,6 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight):
     # Concatenate the augmented data
     X_aug = pd.concat(X_aug)
     y_aug = pd.concat(y_aug)
-
-    # Change the name of the augmented data to the target name
-    y_aug = y_aug.rename(columns={y_aug.columns[0] : y_trn.columns[0]})
     
     # Calculate the training weights of the modelled data
     weight_aug = rel_weight * len(y_trn) / len(y_aug)
