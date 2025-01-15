@@ -78,7 +78,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
         print(f'Saved model epochs at: {best_model.epochs[0]}')
 
     # Tune the relative weight of the augmented data if in the data_aug mode
-    if mode == 'data_aug':
+    if mode == 'data_aug' and cfg.rel_weights:
 
         # Get the losses for the best model with each relative weight
         models_aug = [best_model] * len(cfg.rel_weights)
@@ -96,7 +96,7 @@ def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):
 
     # Save the model hyperparameters and their losses as a csv
     model_names = [str(model) for model in models]
-    if mode == 'data_aug':
+    if mode == 'data_aug' and cfg.rel_weights:
         model_names += [f'{best_model}_rw_{rel_weight:.1f}' for rel_weight in cfg.rel_weights]
     if losses.shape[1] == 1:
         df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})

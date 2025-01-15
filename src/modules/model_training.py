@@ -131,9 +131,14 @@ def train_model(X, y, X_aug, y_aug, mode):
     
     # If in data augmentation mode, split the augmented data 
     if mode == 'data_aug':
-        # Load the relative weight
-        with open(paths.outputs / 'best_rel_weight.txt', 'r') as f:
-            rel_weight = float(f.read())
+        
+        # Load the relative weight if the file exists, otherwise set it to 1
+        try:
+            with open(paths.outputs / 'best_rel_weight.txt', 'r') as f:
+                rel_weight = float(f.read())
+        except FileNotFoundError:
+            print("Warning: 'best_rel_weight.txt' not found. Setting rel_weight to 1.")
+            rel_weight = 1
         
         # Split the augmented data
         X_trn, y_trn, sample_weight = \
