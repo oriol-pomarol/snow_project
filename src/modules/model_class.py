@@ -236,7 +236,7 @@ class Model:
                 param_name = 'rg'
             else:
                 value_str = str(value)
-            model_name += f"_{param_name}{value_str}"
+            model_name += f"_{param_name}_{value_str}"
         
         return model_name
     
