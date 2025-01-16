@@ -195,17 +195,19 @@ def add_lagged_values(df):
 
 def find_temporal_split_dates(dfs):
     
-    # Define a dataframe to store the split dates
-    df_split_dates = pd.DataFrame(columns=['tst_start_date', 'tst_end_date',
-                                           'val_start_date', 'val_end_date'])
-    
-    # Create a MultiIndex for the dataframe
-    df_split_dates.index = pd.MultiIndex.from_tuples([], names=['station', 'split'])
+    # Create an empty list to contain each station's dates
+    station_dates = []
 
     # Retrieve the number of splits
     n_splits = cfg.n_temporal_splits
 
     for station_idx, df in enumerate(dfs):
+
+        # Define a dataframe to store the split dates
+        df_split_dates = pd.DataFrame(columns=['tst_start_date', 'tst_end_date'])
+
+        # Create a MultiIndex for the dataframe
+        df_split_dates.index = pd.MultiIndex.from_tuples([], names=['station', 'split'])
 
         # Shift the index by 6 months to start the year in July
         shifted_index = df.index - pd.offsets.DateOffset(months=6)
@@ -220,9 +222,6 @@ def find_temporal_split_dates(dfs):
         # Add the last year plus one to the list
         timestamps.append(timestamps[-1] + pd.DateOffset(years=1))
 
-        # Calculate the number of validation years
-        val_years = max(1, int(cfg.val_ratio * len(timestamps) * (n_splits - 1) / n_splits))
-
         # Iterate over the split dates
         for split_idx in range(n_splits):
 
@@ -232,17 +231,22 @@ def find_temporal_split_dates(dfs):
             # Take the end test date and validation dates depending on the split index
             if split_idx == n_splits - 1:
                 tst_end_date = timestamps[-1]
-                val_end_date = tst_start_date
             else:
-                val_end_date = timestamps[-1]
                 tst_end_date = timestamps[(split_idx + 1) * len(timestamps) // n_splits]
-            
-            # Calculate the start validation date
-            val_start_date = timestamps[timestamps.index(val_end_date) - val_years]
             
             # Save the split dates
             df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx), :] = \
-                [tst_start_date, tst_end_date, val_start_date, val_end_date]
+                [tst_start_date, tst_end_date]
+
+        # Add the validation dates by shifting the test dates one split
+        df_split_dates['val_start_date'] = np.roll(df_split_dates['tst_start_date'], -1)
+        df_split_dates['val_end_date'] =  np.roll(df_split_dates['tst_end_date'], -1)
+
+        # Append the dataframe to the list
+        station_dates.append(df_split_dates)
+
+    # Concatenate the split dates for all stations
+    df_split_dates = pd.concat(station_dates)
 
     # Save the train_test split dates as a csv
     df_split_dates.to_csv(paths.temp / 'split_dates.csv')
