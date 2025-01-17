@@ -237,6 +237,10 @@ def find_temporal_split_dates(dfs):
             # Save the split dates
             df_split_dates.loc[(cfg.trn_stn[station_idx], split_idx), :] = \
                 [tst_start_date, tst_end_date]
+            
+        # Set the first starting date as 01-01-1900 and the last ending date as 31-12-2100
+        df_split_dates.loc[(cfg.trn_stn[station_idx], 0), 'tst_start_date'] = pd.Timestamp('1900-01-01')
+        df_split_dates.loc[(cfg.trn_stn[station_idx], n_splits-1), 'tst_end_date'] = pd.Timestamp('2100-12-31')
 
         # Add the validation dates by shifting the test dates one split
         df_split_dates['val_start_date'] = np.roll(df_split_dates['tst_start_date'], -1)
