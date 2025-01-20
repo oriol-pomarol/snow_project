@@ -10,7 +10,7 @@ class cfg:
     drop_data: float = 0.0
     drop_data_expl: float = 0.0
     epochs: tuple = (25, 50, 75, 100)
-    rel_weights: tuple = tuple(np.linspace(0.1,0.9, 9))
+    rel_weights: tuple = (0.01, 0.1, 0.5, 1, 2, 10, 100)
     station_names: tuple = ("cdp", "oas", "obs", "ojp", "rme",
                             "sap", "snb", "sod", "swa", "wfj")
     trn_stn: tuple = ('cdp', 'rme', 'sod')
