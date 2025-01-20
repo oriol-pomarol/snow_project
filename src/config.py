@@ -16,7 +16,11 @@ class cfg:
     trn_stn: tuple = ('cdp', 'rme', 'sod')
     aug_stn: tuple = ('oas', 'obs', 'ojp', 'sap', 'snb', 'swa', 'wfj')
     tst_stn: tuple = aug_stn
-    station_years: tuple = ()
+    station_years: tuple = ('cdp_2000', 'cdp_2001', 'cdp_2002', 'cdp_2003', 'cdp_2004', 'cdp_2005', 'cdp_2006', 'cdp_2007', 'cdp_2008', 'cdp_2009', 'cdp_2010',
+                            'rme_1990', 'rme_1991', 'rme_1992', 'rme_1993', 'rme_1994', 'rme_1995', 'rme_1996', 'rme_1997', 'rme_1998', 'rme_1999', 'rme_2000',
+                            'sod_2007', 'sod_2008', 'sod_2009', 'sod_2010', 'sod_2011', 'sod_2012',
+                            'oas_all', 'obs_all', 'ojp_all', 'sap_all', 'snb_all', 'swa_all', 'wfj_all')
+
 
     # Define the modes and the corresponding predictors and target
     @staticmethod

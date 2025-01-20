@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import calendar
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from config import cfg, paths
@@ -89,8 +90,12 @@ def simulation_analysis():
         metric.calculate_and_append(df_test, 'TEST')
         metric.save()
 
-    # Plot the results
-    print('Plotting the results...')  
+    # If cfg.station_years is not empty, create a folder with the figures
+    if cfg.station_years:
+
+        # Create a folder named fwd_sim in the figures directory
+        (paths.figures / 'fwd_sim').mkdir(exist_ok=True)
+
     for station_year in cfg.station_years:
 
         station_name, year = station_year.split("_")
@@ -116,7 +121,7 @@ def simulation_analysis():
             ax = axs[station_idx]
 
             # Get the split dates if temporal split is enabled
-            if cfg.temporal_split:
+            if cfg.temporal_split and (station_name in cfg.trn_stn):
                 tst_start_date = df_split_dates.loc[(station_name, 0), 'tst_start_date']
                 tst_end_date = df_split_dates.loc[(station_name, 0), 'tst_end_date']
                 split_dates = tst_start_date, tst_end_date
@@ -146,7 +151,140 @@ def simulation_analysis():
             ax.set_xlabel('Date')
             ax.set_ylabel('SWE')
             ax.set_title(f'{station_name.upper()} {year}')
-            plt.savefig(paths.figures / f'fwd_sim_{station_name}_{year}.png')
+            plt.savefig(paths.figures / 'fwd_sim' / f'{station_name}_{year}.png')
+
+    # Plot the error depending on the month of the year for each station
+    for station_name in cfg.station_names:
+        
+        # Get the data for the station and clean it
+        df_station = dict_dfs[station_name]
+        df_clean = df_station.dropna()
+
+        # Obtain the difference between the observed and simulated SWE
+        residuals = {}
+        rel_residuals = {}
+        for column_name in df_clean.columns:
+            if column_name != 'obs_swe':
+                residuals[column_name] = abs(df_clean['obs_swe'] - df_clean[column_name])
+                rel_residuals[column_name] = df_clean.apply(
+                    lambda row: 0 if row['obs_swe'] == 0 else abs(row['obs_swe'] - row[column_name]) / row['obs_swe'], axis=1)
+        df_res = pd.DataFrame(residuals, index=df_clean.index)
+        df_rel = pd.DataFrame(rel_residuals, index=df_clean.index)
+
+        # Average the the residuals by the month of the year
+        df_monthly_res = df_res.groupby(df_res.index.month).mean()
+        df_monthly_rel = df_rel.groupby(df_rel.index.month).mean()
+
+        # Map numerical month values to month names and reorder to start from July
+        months = [calendar.month_abbr[i] for i in range(7, 13)] + [calendar.month_abbr[i] for i in range(1, 7)]
+
+        # Plot the number of measurements by month
+        obs_count = df_clean['obs_swe'].groupby(df_clean.index.month).count()
+
+        # Fill the missing months with zeros and reorder to start from July
+        obs_count = obs_count.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6], fill_value=0)
+        obs_count.index = months
+
+        # Plot the results
+        fig, ax = plt.subplots(figsize=(10, 5))
+        obs_count.plot(ax=ax, color='black', alpha=0.5)
+        plt.xlabel('Month')
+        plt.ylabel('Number of measurements')
+        ax.set_xticks(range(len(months)))
+        ax.set_xticklabels(months, rotation=45)
+        plt.savefig(paths.figures / f'{station_name}_monthly_count.png')
+
+        # Reorder the index to start from July
+        df_monthly_res = df_monthly_res.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
+        df_monthly_rel = df_monthly_rel.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
+
+        # Plot the results
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
+
+        # First subplot for df_monthly_res
+        for column_name in df_monthly_res.columns:
+            ax1.plot(months, df_monthly_res[column_name], label=column_name)
+
+        ax1.legend(fontsize='large')
+        ax1.set_ylabel('Error')
+        ax1.tick_params(axis='x', rotation=45)
+
+        # Second subplot for df_monthly_rel
+        for column_name in df_monthly_rel.columns:
+            ax2.plot(months, df_monthly_rel[column_name], label=column_name)
+
+        ax2.set_xlabel('Month')
+        ax2.set_ylabel('Relative Error')
+        ax2.tick_params(axis='x', rotation=45)
+
+        plt.tight_layout()
+        plt.savefig(paths.figures / f'{station_name}_monthly_error.png')
+
+        # Plot the number of measurements by bin
+        df_bins = df_res.copy()
+        df_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
+        df_bins_count = df_bins.groupby('obs_swe').count().fillna(0)
+
+        # Ensure only one column is plotted and rename it to 'Obs'
+        df_bins_count = df_bins_count.iloc[:, [0]].rename(columns={df_bins_count.columns[0]: 'Obs'})
+
+        # Plot the data
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        df_bins_count.plot(ax=ax1, color='black', alpha=0.5)
+
+        # Add the axis labels
+        ax1.set_xlabel('Observed SWE')
+        ax1.set_ylabel('Number of measurements')
+
+        # Align the axis labels to the right and ensure all bins are labeled
+        ax1.set_xticks(range(len(df_bins_count)))
+        ax1.set_xticklabels(df_bins_count.index, rotation=45, ha='right')
+
+        # Hide legend
+        ax1.get_legend().remove()
+
+        plt.savefig(paths.figures / f'{station_name}_binned_count.png')
+
+        # Average the residuals by bins of the observed SWE
+        df_bins = df_res.copy()
+        df_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
+        df_bins = df_bins.groupby('obs_swe').mean()
+
+        # Average the relative residuals by bins of the observed SWE
+        df_rel_bins = df_rel.copy()
+        df_rel_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
+        df_rel_bins = df_rel_bins.groupby('obs_swe').mean()
+
+        # Plot the results
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
+
+        # First subplot for df_bins
+        for column_name in df_bins.columns:
+            ax1.plot(df_bins.index.astype(str), df_bins[column_name], label=column_name)
+
+        ax1.legend(fontsize='large')
+        ax1.set_ylabel('Error')
+
+        # Second subplot for df_rel_bins
+        for column_name in df_rel_bins.columns:
+            ax2.plot(df_rel_bins.index.astype(str), df_rel_bins[column_name], label=column_name)
+
+        ax2.set_xlabel('Observed SWE')
+        ax2.set_ylabel('Relative Error')
+
+        # Align the axis labels to the right
+        for label in ax1.get_xticklabels():
+            label.set_ha('right')
+            label.set_rotation(45)
+
+        for label in ax2.get_xticklabels():
+            label.set_ha('right')
+            label.set_rotation(45)
+
+        plt.tight_layout()
+        plt.savefig(paths.figures / f'{station_name}_binned_error.png')
+
+    return
 
 ###############################################################################
 # EXTRA FUNCTIONS
