@@ -43,9 +43,6 @@ def simulation_analysis():
         df_station = df_obs.join(df_sim, how="outer")
         df_station.index = pd.to_datetime(df_station.index)
 
-        # Clean the data
-        df_station = df_station.dropna()
-
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
@@ -64,7 +61,7 @@ def simulation_analysis():
             split_dates = tst_start_date, tst_end_date
 
             # Mask the measurements by testing sets
-            df_test = mask_measurements_by_year(dict_dfs[station_name], 'test', split_dates)
+            df_test = mask_measurements_by_year(dict_dfs[station_name].dropna(), 'test', split_dates)
             
             # Calculate and append the metrics
             for metric in metrics:
@@ -76,7 +73,7 @@ def simulation_analysis():
         # Calculate the nNSE for the whole station if in station split
         else:
             for metric in metrics:
-                metric.calculate_and_append(dict_dfs[station_name], station_name)
+                metric.calculate_and_append(dict_dfs[station_name].dropna(), station_name)
 
             # Append df to the list of test stations if it is a test station
             if (not cfg.temporal_split) and (station_name in cfg.tst_stn):
