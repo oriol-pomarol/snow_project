@@ -149,6 +149,7 @@ def simulation_analysis():
             ax.set_ylabel('SWE')
             ax.set_title(f'{station_name.upper()} {year}')
             plt.savefig(paths.figures / 'fwd_sim' / f'{station_name}_{year}.png')
+            plt.close()
 
     # Plot the error depending on the month of the year for each station
     for station_name in cfg.station_names:
@@ -280,6 +281,95 @@ def simulation_analysis():
 
         plt.tight_layout()
         plt.savefig(paths.figures / f'{station_name}_binned_error.png')
+
+    # Close all figures
+    plt.close('all')
+
+    # Analyse the peak SWE and date of snowmelt for the train stations
+    for station_name in cfg.trn_stn:
+        df_station = dict_dfs[station_name]
+
+        # Move the index 6 months back to start from July
+        df_station.index = df_station.index - pd.DateOffset(months=6)
+
+        # Group the snow observations by year and get the maximum value
+        df_yearly_max = df_station.groupby(df_station.index.year).max()
+
+        # Remove the rows for which the year is not complete
+        df_yearly_count = df_station.groupby(df_station.index.year).count()
+        valid_years = df_yearly_count[df_yearly_count['mod_swe'] > 300].index
+        df_yearly_max = df_yearly_max.loc[valid_years]
+
+        # Set rows in obs_swe to NaN if there are less than 100 observations
+        df_yearly_count_obs = df_station.groupby(df_station.index.year)['obs_swe'].count()
+        invalid_years = df_yearly_count_obs[df_yearly_count_obs < 100].index
+        invalid_years = [year for year in invalid_years if year in valid_years]
+        df_yearly_max.loc[df_yearly_max.index.isin(invalid_years), 'obs_swe'] = np.nan
+        if invalid_years:
+            print('Years with less than 100 observations:', invalid_years)
+
+        # Make a plot of the maximum observed SWE by year
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # Copy the df and change the index to a datetime object
+        df_yearly_max_plot = df_yearly_max.copy()
+        df_yearly_max_plot.index = pd.to_datetime(df_yearly_max.index, format='%Y')
+        df_yearly_max_plot.plot(ax=ax)
+
+        # Add the axis labels
+        plt.xlabel('Year')
+        plt.ylabel('Maximum SWE (mm)')
+        plt.legend()
+        plt.savefig(paths.figures / f'{station_name}_peak_swe.png')
+
+        # Gather the snowmelt dates for each year
+        snowmelt_dates = {}
+        for year in df_yearly_max.index:
+
+            # Get the maximum SWE for the year
+            df_year = df_station.loc[df_station.index.year == year]
+
+            # For each of the columns in df_station, find at which date there is no snow
+            first_no_snow_dates = []
+            for column_name in df_year.columns:
+
+                # Find the first date with no snow between March and June (inclusive)
+                no_snow_dates = df_year.index[(df_year[column_name] < 1) & (df_year.index.month >=9)]
+                first_no_snow = (no_snow_dates + pd.DateOffset(months=6)).min()
+
+                # Check if there is a date with no snow
+                if not pd.isnull(first_no_snow):
+                    first_no_snow_dates.append(first_no_snow)
+                else:
+                    first_no_snow_dates.append(pd.NaT)
+
+            # Add the dates to the dictionary
+            snowmelt_dates[year] = first_no_snow_dates
+
+        # Convert the dictionary to a dataframe, where each year is a row and each column is a simulation mode
+        df_snowmelt_dates = pd.DataFrame.from_dict(snowmelt_dates, orient='index', columns=df_yearly_max.columns)
+
+        # Create a new dataframe with the day of the year of the snowmelt date
+        doy = df_snowmelt_dates.copy()
+        doy = doy.apply(lambda row: row.dt.dayofyear)
+
+        # Plot the snowmelt day of the year for each year
+        fig, ax = plt.subplots(figsize=(10, 6))
+        doy.plot(ax=ax, label=column_name)
+
+        # Add the axis labels
+        plt.xlabel('Year')
+        plt.ylabel('Snowmelt date (DoY)')
+        plt.legend()
+        plt.savefig(paths.figures / f'{station_name}_snowmelt_date.png')
+
+        # Add the mean peak SWE as an additional row and store the results in a CSV file
+        df_yearly_max.loc['MEAN'] = df_yearly_max.mean()
+        df_yearly_max.to_csv(paths.outputs / f'peak_swe_{station_name}.csv')
+
+        # Add the mean doy as an additional row and store the results in a CSV file
+        doy.loc['MEAN'] = doy.mean()
+        doy.to_csv(paths.outputs / f'snowmelt_date_{station_name}.csv')
 
     return
 
