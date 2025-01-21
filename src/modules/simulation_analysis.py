@@ -151,6 +151,9 @@ def simulation_analysis():
             plt.savefig(paths.figures / 'fwd_sim' / f'{station_name}_{year}.png')
             plt.close()
 
+    # Create a folder named error_analysis in the figures directory
+    (paths.figures / 'error_analysis').mkdir(exist_ok=True)
+
     # Plot the error depending on the month of the year for each station
     for station_name in cfg.station_names:
         
@@ -190,7 +193,7 @@ def simulation_analysis():
         plt.ylabel('Number of measurements')
         ax.set_xticks(range(len(months)))
         ax.set_xticklabels(months, rotation=45)
-        plt.savefig(paths.figures / f'{station_name}_monthly_count.png')
+        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_monthly_count.png')
 
         # Reorder the index to start from July
         df_monthly_res = df_monthly_res.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
@@ -216,7 +219,7 @@ def simulation_analysis():
         ax2.tick_params(axis='x', rotation=45)
 
         plt.tight_layout()
-        plt.savefig(paths.figures / f'{station_name}_monthly_error.png')
+        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_monthly_error.png')
 
         # Plot the number of measurements by bin
         df_bins = df_res.copy()
@@ -241,7 +244,7 @@ def simulation_analysis():
         # Hide legend
         ax1.get_legend().remove()
 
-        plt.savefig(paths.figures / f'{station_name}_binned_count.png')
+        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_binned_count.png')
 
         # Average the residuals by bins of the observed SWE
         df_bins = df_res.copy()
@@ -280,10 +283,10 @@ def simulation_analysis():
             label.set_rotation(45)
 
         plt.tight_layout()
-        plt.savefig(paths.figures / f'{station_name}_binned_error.png')
+        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_binned_error.png')
 
-    # Close all figures
-    plt.close('all')
+        # Close all figures
+        plt.close('all')
 
     # Analyse the peak SWE and date of snowmelt for the train stations
     for station_name in cfg.trn_stn:
