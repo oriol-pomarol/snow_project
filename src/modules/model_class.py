@@ -145,7 +145,8 @@ class Model:
                 X = preprocess_data_lstm(X)
 
             callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
-            history = self.model.fit(X, y, epochs=max(self.epochs), callbacks=callbacks, **kwargs)
+            history = self.model.fit(X, y, epochs=max(self.epochs), verbose=2,
+                                     callbacks=callbacks, **kwargs)
 
             # Define the model as all the saved models (if more than one)
             if len(self.epochs) > 1:
