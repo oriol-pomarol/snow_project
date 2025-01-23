@@ -176,28 +176,16 @@ def simulation_analysis():
         df_monthly_res = df_res.groupby(df_res.index.month).mean()
         df_monthly_rel = df_rel.groupby(df_rel.index.month).mean()
 
-        # Map numerical month values to month names and reorder to start from July
-        months = [calendar.month_abbr[i] for i in range(7, 13)] + [calendar.month_abbr[i] for i in range(1, 7)]
-
-        # Plot the number of measurements by month
+        # Obtain the number of measurements by month
         obs_count = df_clean['obs_swe'].groupby(df_clean.index.month).count()
 
-        # Fill the missing months with zeros and reorder to start from July
-        obs_count = obs_count.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6], fill_value=0)
-        obs_count.index = months
-
-        # Plot the results
-        fig, ax = plt.subplots(figsize=(10, 5))
-        obs_count.plot(ax=ax, color='black', alpha=0.5)
-        plt.xlabel('Month')
-        plt.ylabel('Number of measurements')
-        ax.set_xticks(range(len(months)))
-        ax.set_xticklabels(months, rotation=45)
-        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_monthly_count.png')
+        # Map numerical month values to month names and reorder to start from July
+        months = [calendar.month_abbr[i] for i in range(7, 13)] + [calendar.month_abbr[i] for i in range(1, 7)]        
 
         # Reorder the index to start from July
         df_monthly_res = df_monthly_res.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
         df_monthly_rel = df_monthly_rel.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
+        obs_count = obs_count.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
 
         # Plot the results
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
@@ -206,49 +194,38 @@ def simulation_analysis():
         for column_name in df_monthly_res.columns:
             ax1.plot(months, df_monthly_res[column_name], label=column_name)
 
+        # Set the labels and ticks
         ax1.legend(fontsize='large')
         ax1.set_ylabel('Error')
         ax1.tick_params(axis='x', rotation=45)
+
+        # Plot the histogram of the number of observations in the background
+        ax1t = ax1.twinx()
+        ax1t.bar(months, obs_count, alpha=0.2, color='gray')
+        ax1t.set_ylabel('Number of measurements')
 
         # Second subplot for df_monthly_rel
         for column_name in df_monthly_rel.columns:
             ax2.plot(months, df_monthly_rel[column_name], label=column_name)
 
+        # Set the labels and ticks
         ax2.set_xlabel('Month')
         ax2.set_ylabel('Relative Error')
         ax2.tick_params(axis='x', rotation=45)
 
+        # Plot the histogram of the number of observations in the background
+        ax2t = ax2.twinx()
+        ax2t.bar(months, obs_count, alpha=0.2, color='gray')
+        ax2t.set_ylabel('Number of measurements')
+
+        # Set a tight layout and save the figure
         plt.tight_layout()
         plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_monthly_error.png')
 
-        # Plot the number of measurements by bin
+        # Get the number of measurements and mean error by bin
         df_bins = df_res.copy()
         df_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
         df_bins_count = df_bins.groupby('obs_swe').count().fillna(0)
-
-        # Ensure only one column is plotted and rename it to 'Obs'
-        df_bins_count = df_bins_count.iloc[:, [0]].rename(columns={df_bins_count.columns[0]: 'Obs'})
-
-        # Plot the data
-        fig, ax1 = plt.subplots(figsize=(10, 5))
-        df_bins_count.plot(ax=ax1, color='black', alpha=0.5)
-
-        # Add the axis labels
-        ax1.set_xlabel('Observed SWE')
-        ax1.set_ylabel('Number of measurements')
-
-        # Align the axis labels to the right and ensure all bins are labeled
-        ax1.set_xticks(range(len(df_bins_count)))
-        ax1.set_xticklabels(df_bins_count.index, rotation=45, ha='right')
-
-        # Hide legend
-        ax1.get_legend().remove()
-
-        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_binned_count.png')
-
-        # Average the residuals by bins of the observed SWE
-        df_bins = df_res.copy()
-        df_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
         df_bins = df_bins.groupby('obs_swe').mean()
 
         # Average the relative residuals by bins of the observed SWE
@@ -263,25 +240,35 @@ def simulation_analysis():
         for column_name in df_bins.columns:
             ax1.plot(df_bins.index.astype(str), df_bins[column_name], label=column_name)
 
+        # Set the labels and ticks
         ax1.legend(fontsize='large')
         ax1.set_ylabel('Error')
+        for label in ax1.get_xticklabels():
+            label.set_ha('right')
+            label.set_rotation(45)
+
+        # Plot the histogram of the number of observations in the background
+        ax1t = ax1.twinx()
+        ax1t.bar(df_bins_count.index.astype(str), df_bins_count['mod_swe'], alpha=0.2, color='gray')
+        ax1t.set_ylabel('Number of measurements')
 
         # Second subplot for df_rel_bins
         for column_name in df_rel_bins.columns:
             ax2.plot(df_rel_bins.index.astype(str), df_rel_bins[column_name], label=column_name)
 
+        # Set the labels and ticks
         ax2.set_xlabel('Observed SWE')
         ax2.set_ylabel('Relative Error')
-
-        # Align the axis labels to the right
-        for label in ax1.get_xticklabels():
-            label.set_ha('right')
-            label.set_rotation(45)
-
         for label in ax2.get_xticklabels():
             label.set_ha('right')
             label.set_rotation(45)
+        
+        # Plot the histogram of the number of observations in the background
+        ax2t = ax2.twinx()
+        ax2t.bar(df_bins_count.index.astype(str), df_bins_count['mod_swe'], alpha=0.2, color='gray')
+        ax2t.set_ylabel('Number of measurements')
 
+        # Set a tight layout and save the figure
         plt.tight_layout()
         plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_binned_error.png')
 
