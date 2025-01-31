@@ -10,6 +10,7 @@ src/modules/__pycache__
 src/modules/unused
 src/__pycache__
 src/check_data.ipynb
+src/check_results.ipynb
 
 job_scheduler.sh
 snow_code.code-workspace

@@ -406,7 +406,7 @@ def mean_absolute_error(obs, sim):
 def mean_bias_error(obs, sim):
     if len(obs) < 1:
         return float('nan')
-    return np.mean(obs - sim)
+    return np.mean(sim - obs)
 
 def nash_sutcliffe_efficiency(obs, sim):
     if len(obs) < 2:
