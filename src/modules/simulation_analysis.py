@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import calendar
+import fastdtw
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from config import cfg, paths
@@ -16,6 +17,7 @@ def simulation_analysis():
         Metric('mae', mean_absolute_error, sim_modes),
         Metric('mbe', mean_bias_error, sim_modes),
         Metric('nse', nash_sutcliffe_efficiency, sim_modes),
+        Metric('dtw', dynamic_time_warping, sim_modes)
     ]
 
     if cfg.temporal_split:
@@ -412,6 +414,11 @@ def nash_sutcliffe_efficiency(obs, sim):
     if len(obs) < 2:
         return float('nan')
     return 1 - np.sum((obs - sim) ** 2) / np.sum((obs - np.mean(obs)) ** 2)
+
+def dynamic_time_warping(obs, sim):
+    if len(obs) < 1:
+        return float('nan')
+    return fastdtw.dtw(obs, sim, dist=2)[0]/len(obs)
 
 ###############################################################################
 
