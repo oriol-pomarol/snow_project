@@ -121,9 +121,18 @@ class Model:
 
     def fit(self, X, y, **kwargs):
 
-        # Drop a percentage of the data, unless it is less than 100 samples
-        if len(X) > 100 and cfg.drop_data > 0:
-            mask = np.random.rand(len(X)) > cfg.drop_data
+        # Drop a percentage of the data if specified
+        if cfg.drop_data > 0:
+
+            # Set the number of samples to keep, ensuring it is at least 101
+            n_end_samples = max(10, int(len(X) * (1 - cfg.drop_data)))
+
+            # Create a mask to keep a random subset of the data with n_end_samples
+            mask = np.zeros(len(X), dtype=bool)
+            mask[-n_end_samples:] = True
+            np.random.shuffle(mask)
+
+            # Apply the mask to the training data
             X = X[mask]
             y = y[mask]
 
@@ -186,9 +195,18 @@ class Model:
 
     def test(self, X, y):
 
-        # Drop a percentage of the data, unless it is less than 100 samples
-        if len(X) > 100:
-            mask = np.random.rand(len(X)) > cfg.drop_data
+        # Drop a percentage of the data if specified
+        if cfg.drop_data > 0:
+
+            # Set the number of samples to keep, ensuring it is at least 101
+            n_end_samples = max(10, int(len(X) * (1 - cfg.drop_data)))
+
+            # Create a mask to keep a random subset of the data with n_end_samples
+            mask = np.zeros(len(X), dtype=bool)
+            mask[-n_end_samples:] = True
+            np.random.shuffle(mask)
+
+            # Apply the mask to the training data
             X = X[mask]
             y = y[mask]
 
