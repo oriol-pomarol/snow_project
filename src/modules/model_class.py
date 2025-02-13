@@ -154,7 +154,7 @@ class Model:
                 X = preprocess_data_lstm(X)
 
             callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
-            history = self.model.fit(X, y, epochs=max(self.epochs), verbose=2,
+            history = self.model.fit(X, y.squeeze(), epochs=max(self.epochs), verbose=2,
                                      callbacks=callbacks, **kwargs)
 
             # Define the model as all the saved models (if more than one)
@@ -165,7 +165,7 @@ class Model:
         
         # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
-            self.model.fit(X, y, **kwargs)
+            self.model.fit(X, y.squeeze(), **kwargs)
 
             return None
 
