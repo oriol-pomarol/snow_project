@@ -17,15 +17,12 @@ class Model:
         self.model = None
         self.model_type = None
         self.hyperparameters = None
+        self.rel_weight = None
         self.scaler = None
         self.best_epochs = []
 
     def set_hps(self, model_type, hyperparameters, epochs=None):
-        valid_model_type = model_type.lower() in ['nn', 'rf','lstm']
-        if valid_model_type:
-            self.model_type = model_type.lower()
-        else:
-            raise ValueError("Invalid model type.")
+        self.model_type = model_type.lower()
         self.hyperparameters = hyperparameters
         self.epochs = epochs
     
@@ -35,7 +32,8 @@ class Model:
         hps_mt = {
             'hyperparameters': self.hyperparameters,
             'model_type': self.model_type,
-            'epochs': self.epochs
+            'epochs': self.epochs,
+            'rel_weight': self.rel_weight,
         }
         with open(path_dir / f'{self.mode}_hps.json', 'w') as f:
             json.dump(hps_mt, f)
@@ -48,6 +46,7 @@ class Model:
             self.hyperparameters = hps_mt.get('hyperparameters')
             self.model_type = hps_mt.get('model_type')
             self.epochs = hps_mt.get('epochs')
+            self.rel_weight = hps_mt.get('rel_weight')
 
     def create_model(self, input_shape, n_met_vars):
         self.model = None  # Clear any existing model
@@ -153,6 +152,10 @@ class Model:
             if self.model_type == 'lstm':
                 X = preprocess_data_lstm(X)
 
+            # Set a random seed for tensorflow
+            tf.random.set_seed(10)
+            
+            # Fit the model, saving it at the specified epochs
             callbacks = [SaveModelAtEpoch(self.epochs)] if len(self.epochs) > 1 else []
             history = self.model.fit(X, y.squeeze(), epochs=max(self.epochs), verbose=2,
                                      callbacks=callbacks, **kwargs)
@@ -246,7 +249,7 @@ class Model:
             # Manually added exceptions for clarity
             if key == 'layers':
                 value_str = "_".join([f"{unit:03d}" for unit in value])
-                param_name = 'ly'
+                param_name = 'la'
             elif key == 'learning_rate':
                 value_str = f"{value:.0e}".replace("-", "_")
                 param_name = 'lr'
@@ -256,7 +259,10 @@ class Model:
             else:
                 value_str = str(value)
             model_name += f"_{param_name}_{value_str}"
-        
+        # Add the relative weight to the model name if not None
+        if self.rel_weight is not None:
+            model_name += f"_rw_{self.rel_weight:.0e}".replace("-", "_")
+            
         return model_name
     
 # Define a custom callback to save models at specific epochs

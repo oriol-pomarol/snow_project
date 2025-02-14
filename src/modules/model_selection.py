@@ -8,6 +8,7 @@ from .auxiliary_functions import (
     load_processed_data,
     find_temporal_split_dates,
     data_aug_split,
+    dropna_replace_obs,
 )
 
 def model_selection():
@@ -17,98 +18,82 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    aug_dfs = [all_dfs[stn] for stn in cfg.aug_stn]
-    aug_dfs = preprocess_aug_data(aug_dfs)
+    aug_dfs = [dropna_replace_obs(all_dfs[stn]) for stn in cfg.aug_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
     aug_dfs = [df.query('delta_obs_swe != -obs_swe') for df in aug_dfs]
     
-    # Set a random seed for tensorflow
-    tf.random.set_seed(10)
-
     # Find the dates for the temporal split
     if cfg.temporal_split:
         find_temporal_split_dates(trn_dfs)
 
+    # Loop over each mode and predictors
     for mode, predictors in cfg.modes().items():
-    
-        # Obtain the best model for the direct prediction setup
+
         print(f'Starting {mode} model selection...')
-        
-        # Take the corresponding predictor and target variables
+
+        # Filter the corresponding predictor and target variables
         X_obs = [df.filter(regex=predictors) for df in trn_dfs]
         y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
         
-        # Take the augmented data if in the corresponding mode
+        # Filter the augmented data if in the corresponding mode
         if mode == 'data_aug':
             X_aug = [df.filter(regex=predictors) for df in aug_dfs]
             y_aug = [df[['delta_obs_swe']] for df in aug_dfs]
         else:
             X_aug, y_aug = None, None
 
-        # Obtain the best model and save its hyperparameters
-        model = select_model(X = X_obs, y = y_obs, X_aug = X_aug,
-                            y_aug = y_aug, mode = mode)
-        model.save_hps()
+        # Initialize a model for each model type and HP combination
+        models = initialize_models(mode)
+
+        # Get the losses for each model and split with rel_weight = 1
+        losses = get_losses(X_obs, y_obs, X_aug, y_aug,
+                            models, mode)
+
+        # Select the best model based on the losses
+        mean_losses = np.mean(losses, axis=1)
+        best_model = models[np.argmin(mean_losses)]
+
+        # Set epochs to the median of best epochs for all splits, if not a RF
+        if best_model.model_type != 'rf':
+            best_model.epochs = [int(np.median(best_model.best_epochs)),]
+            print(f'Saved model epochs at: {best_model.epochs[0]}')
+
+        # Tune rel_weight, if specified and in data_aug mode
+        if mode == 'data_aug' and cfg.rel_weights:
+
+            # Initialize a list of the best model with different rel_weights
+            models_aug = [best_model.copy() for _ in cfg.rel_weights]
+            for model, rel_weight in zip(models_aug, cfg.rel_weights):
+                model.rel_weight = rel_weight
+
+            # Get the losses from each model with different rel_weights
+            losses_aug = get_losses(X_obs, y_obs, X_aug, y_aug,
+                                    models_aug, mode)
+
+            # Find the best relative weight and set it to the best model
+            mean_losses_aug = np.mean(losses_aug, axis=1)
+            best_rel_weight = cfg.rel_weights[np.argmin(mean_losses_aug)]
+            best_model.rel_weight = best_rel_weight
+
+            # Concatenate the augmented and mean losses and models
+            losses = np.concatenate((losses, losses_aug))
+            mean_losses = np.concatenate((mean_losses, mean_losses_aug))
+            models += models_aug
+
+        # Save the hyperparameters and losses to a csv
+        best_model = save_hp_losses(models, losses, mean_losses, mode)
+
+        # Save the best model hyperparameters to a json
+        best_model.save_hps()
+
         print(f'{mode} model selected successfully...')
 
     return
 
 ###############################################################################
-# SELECT MODEL FUNCTION
-###############################################################################
-
-def select_model(X, y, X_aug=None, y_aug=None, mode='dir_pred'):    
-
-    # Initialize a model for each model type and HP combination
-    models = initialize_models(mode)
-
-    # Get the losses for each model and split with a relative weight of 1
-    rel_weights = [1] * len(models)
-    losses = get_losses(X, y, X_aug, y_aug, models, rel_weights, mode)
-
-    # Select the best model
-    mean_loss = np.mean(losses, axis=1)
-    best_model = models[np.argmin(mean_loss)]
-
-    # If it is a NN or LSTM model, set the epochs to the median
-    if best_model.model_type != 'rf':
-        best_model.epochs = [int(np.median(best_model.best_epochs)),]
-        print(f'Saved model epochs at: {best_model.epochs[0]}')
-
-    # Tune the relative weight of the augmented data if in the data_aug mode
-    if mode == 'data_aug' and cfg.rel_weights:
-
-        # Get the losses for the best model with each relative weight
-        models_aug = [best_model] * len(cfg.rel_weights)
-        losses_aug = get_losses(X, y, X_aug, y_aug, models_aug, cfg.rel_weights, mode)
-
-        # Find the best relative weight and store it as a file
-        mean_loss_aug = np.mean(losses_aug, axis=1)
-        best_rel_weight = cfg.rel_weights[np.argmin(mean_loss_aug)]
-        with open(paths.outputs / 'best_rel_weight.txt', 'w') as f:
-            f.write(str(best_rel_weight))
-
-        # Concatenate the augmented losses and mean losses
-        losses = np.concatenate((losses, losses_aug))
-        mean_loss = np.concatenate((mean_loss, mean_loss_aug))
-
-    # Save the model hyperparameters and their losses as a csv
-    model_names = [str(model) for model in models]
-    if mode == 'data_aug' and cfg.rel_weights:
-        model_names += [f'{best_model}_rw_{rel_weight:.1f}' for rel_weight in cfg.rel_weights]
-    if losses.shape[1] == 1:
-        df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})
-    else:
-        data = {f'MSE (Split {i+1})': losses[:, i] for i in range(losses.shape[1])}
-        data.update({'MSE (mean)': mean_loss, 'HP': model_names})
-        df_losses = pd.DataFrame(data)
-    df_losses.set_index('HP', inplace=True)
-    df_losses.to_csv(paths.outputs / f'model_losses_{mode}.csv')
-
-    return best_model
-
+# MODEL SELECTION FUNCTIONS
 ###############################################################################
 
 def initialize_models(mode):
@@ -143,6 +128,10 @@ def initialize_models(mode):
             model = Model(mode)
             model.set_hps(model_type, hp_combination, epochs)
 
+            # If in data_aug mode, set the rel_weight to 1
+            if mode == 'data_aug':
+                model.rel_weight = 1
+
             # Append the model to the list
             models.append(model)
 
@@ -150,7 +139,7 @@ def initialize_models(mode):
 
 ###############################################################################
 
-def get_losses(X, y, X_aug, y_aug, models, rel_weights, mode):
+def get_losses(X, y, X_aug, y_aug, models, mode):
 
     # Initialize losses for model validation
     n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
@@ -173,10 +162,9 @@ def get_losses(X, y, X_aug, y_aug, models, rel_weights, mode):
             print(f'Split {s+1}/{n_splits}, Model {m+1}/{len(models)}.')
 
             # Add the augmented data if in the corresponding mode
-            rel_weight = rel_weights[m]
             if mode == 'data_aug':
                 X_trn, y_trn, sample_weight = \
-                    data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight)
+                    data_aug_split(X_trn, y_trn, X_aug, y_aug, model.rel_weight)
             else:
                 sample_weight = None
 
@@ -192,6 +180,31 @@ def get_losses(X, y, X_aug, y_aug, models, rel_weights, mode):
             losses[m, s] = loss
     return losses
 
+###############################################################################
+
+def save_hp_losses(models, losses, mean_losses, mode):    
+
+    # Save the model hyperparameters and their losses as a csv
+    model_names = [str(model) for model in models]
+
+    # Save losses as a single column, if only one split
+    if losses.shape[1] == 1:
+        df_losses = pd.DataFrame({'MSE': losses[:, 0], 'HP': model_names})
+    
+    # Save losses as multiple columns and compute the mean, if multiple splits
+    else:
+        data = {f'MSE (Split {i+1})': losses[:, i] for i in range(losses.shape[1])}
+        data.update({'MSE (mean)': mean_losses, 'HP': model_names})
+        df_losses = pd.DataFrame(data)
+
+    # Set the HP column as the index and save the dataframe to a csv
+    df_losses.set_index('HP', inplace=True)
+    df_losses.to_csv(paths.outputs / f'model_losses_{mode}.csv')
+
+    return
+
+###############################################################################
+# DATA SPLIT FUNCTIONS
 ###############################################################################
 
 def station_validation_split(X, y, i):
@@ -245,20 +258,3 @@ def temporal_validation_split(X, y, split_idx):
     X_val, y_val = pd.concat(X_val), pd.concat(y_val)
 
     return X_trn, X_val, y_trn, y_val
-
-###############################################################################
-
-def preprocess_aug_data(aug_dfs):
-
-    for df in aug_dfs:
-        # Drop the observed SWE and derived columns
-        df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
-
-        # Rename the modeled SWE and derived columns
-        df.rename(columns={'mod_swe': 'obs_swe',
-                           'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
-        
-        # Drop the rows with NAs
-        df.dropna(inplace=True)
-
-    return aug_dfs

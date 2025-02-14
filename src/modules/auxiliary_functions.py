@@ -275,3 +275,19 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight):
     y_trn = pd.concat([y_trn, y_aug])
 
     return X_trn, y_trn, sample_weight
+
+###############################################################################
+
+def dropna_replace_obs(aug_df):
+
+    # Drop the observed SWE and derived columns
+    aug_df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
+
+    # Rename the modeled SWE and derived columns
+    aug_df.rename(columns={'mod_swe': 'obs_swe',
+                        'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
+    
+    # Drop the rows with NAs
+    aug_df.dropna(inplace=True)
+
+    return aug_df
