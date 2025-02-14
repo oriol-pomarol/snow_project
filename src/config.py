@@ -1,11 +1,8 @@
-import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
 
 @dataclass()
 class cfg:
-    lag: tuple = 14
-    temporal_split: bool = False
     n_temporal_splits: int = 5
     drop_data: float = 0.0
     drop_data_expl: float = 0.0
@@ -61,10 +58,3 @@ class paths:
     # DATA PATHS
     proc_data: Path = root / "data" / "processed"
     raw_data: Path = root / "data" / "raw"
-
-    # RESULTS PATHS
-    results: Path = root / "results"
-    models: Path = results / "models"
-    figures: Path = results / "figures"
-    outputs: Path = results / "outputs"
-    temp: Path = results / "temp"
