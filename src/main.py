@@ -17,7 +17,7 @@ for lag in lag_values:
     cfg.lag = lag
 
     # Preprocess the data for the given lag value
-    print('Loading and processing the data...')
+    print(f'Loading and processing the data for lag={cfg.lag}...')
     data_processing()
     print('Successfully loaded and processed the data...')
 
@@ -50,13 +50,17 @@ for lag in lag_values:
                         value = value()
                     f.write(f'{key} = {value}\n')
 
+        # Print the lag and temporal split values
+        split_type = 'temporal' if cfg.temporal_split else 'spatial'
+        print(f'Running script for lag={cfg.lag} and {split_type} split...')
+
         # Record starting run time
         start_time = time.time()
 
         # Find the best hyperparameters for the models
-        print('Finding the best model type and hyperparameters...')
+        print('Selecting model type and hyperparameters...')
         model_selection()
-        print('Successfully found the best model type and hyperparameters...')
+        print('Successfully selected model type and hyperparameters...')
 
         # Train the models with the different setups
         print('Training and evaluating models...')
@@ -76,4 +80,5 @@ for lag in lag_values:
         # Print execution time
         end_time = time.time()
         execution_time = (end_time - start_time) / 60
-        print('Script finalized.\nExecution time: {:.3g} minutes.'.format(execution_time))
+        print('Script finalized.')
+        print(f'Execution time: {execution_time:.3g} minutes.')
