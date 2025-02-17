@@ -278,7 +278,7 @@ def data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight):
 
 ###############################################################################
 
-def dropna_replace_obs(aug_df):
+def replace_obs_dropna(aug_df):
 
     # Drop the observed SWE and derived columns
     aug_df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)

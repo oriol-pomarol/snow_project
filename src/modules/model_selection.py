@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 import itertools
 from config import cfg, paths
 from .model_class import Model
@@ -8,7 +7,7 @@ from .auxiliary_functions import (
     load_processed_data,
     find_temporal_split_dates,
     data_aug_split,
-    dropna_replace_obs,
+    replace_obs_dropna,
 )
 
 def model_selection():
@@ -18,7 +17,7 @@ def model_selection():
     
     # Store the training and augmentation dataframes and drop NAs
     trn_dfs = [all_dfs[stn].dropna() for stn in cfg.trn_stn]
-    aug_dfs = [dropna_replace_obs(all_dfs[stn]) for stn in cfg.aug_stn]
+    aug_dfs = [replace_obs_dropna(all_dfs[stn]) for stn in cfg.aug_stn]
 
     # Filter the biased delta SWE values
     trn_dfs = [df.query('delta_obs_swe != -obs_swe') for df in trn_dfs]
@@ -28,7 +27,7 @@ def model_selection():
     if cfg.temporal_split:
         find_temporal_split_dates(trn_dfs)
 
-    # Loop over each mode and predictors
+    # Select the best model and HP for each mode
     for mode, predictors in cfg.modes().items():
 
         print(f'Starting {mode} model selection...')
@@ -238,7 +237,7 @@ def temporal_validation_split(X, y, split_idx):
         tst_start_date, tst_end_date, val_start_date, val_end_date = \
             df_split_dates.loc[(station, split_idx)].values
         
-        # Filter the trn and val data conditions for the current station and split
+        # Get the trn/val conditions for the current station and split
         trn_cond = ((X[i].index < tst_start_date) | \
                     (X[i].index >= tst_end_date)) & \
                    ((X[i].index < val_start_date) | \

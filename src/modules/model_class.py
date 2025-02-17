@@ -3,6 +3,7 @@ import json
 import tensorflow as tf
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from tensorflow import keras
 from keras.callbacks import Callback
 from sklearn.preprocessing import StandardScaler
@@ -118,7 +119,7 @@ class Model:
             self.scaler = joblib.load(paths.temp / f'{model_name}_scaler.joblib')
 
 
-    def fit(self, X, y, **kwargs):
+    def fit(self, X, y, save_train_history=False, **kwargs):
 
         # Drop a percentage of the data if specified
         if cfg.drop_data > 0:
@@ -164,13 +165,26 @@ class Model:
             if len(self.epochs) > 1:
                 self.model = callbacks[0].get_saved_models()
 
-            return history
+            # If specified, save the training history...
+            if save_train_history:
+                # 1) as a csv
+                history_df = pd.DataFrame(history.history)
+                history_df.to_csv(paths.temp / f'train_history_{self.mode}.csv')
+                                
+                # 2) as a plot
+                plt.figure()
+                plt.plot(history.history['loss'], label='loss')
+                plt.legend()
+                plt.yscale('log')
+                plt.xlabel('Epoch')
+                plt.ylabel('MSE')
+                plt.savefig(paths.figures / f'train_history_{self.mode}.png')
         
         # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
             self.model.fit(X, y.squeeze(), **kwargs)
 
-            return None
+        return
 
     def predict(self, X):
 

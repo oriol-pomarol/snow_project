@@ -4,9 +4,23 @@ import calendar
 import fastdtw
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.colors import LinearSegmentedColormap
+from sklearn.metrics import r2_score
 from config import cfg, paths
 
 def simulation_analysis():
+
+    # Make the plots for the predicted vs true values
+    for mode in cfg.modes().keys():
+
+        # Load the train, test and augmented dataframes
+        df_trn = pd.read_csv(paths.temp / f'pred_vs_true_{mode}.csv')
+        df_tst = pd.read_csv(paths.temp / f'pred_vs_true_tst_{mode}.csv')
+        if mode == 'data_aug':
+            df_aug = pd.read_csv(paths.temp / f'pred_vs_true_{mode}_aug.csv')
+
+        # Make a plot of the predicted vs true values
+        plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
 
     # Create a list with the simulation modes and add Crocus simulations
     sim_modes = ['mod_swe'] + list(cfg.modes().keys())
@@ -434,3 +448,89 @@ class Metric:
 
     def save(self):
         self.df.to_csv(paths.outputs / f'fwd_sim_{self.name}.csv')
+
+###############################################################################
+# TEST PLOT FUNCTIONS
+###############################################################################
+
+def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):
+
+    # Extract the true and predicted values
+    y_train = df_trn['y_trn']
+    y_train_pred = df_trn['y_trn_pred']
+    y_test = df_tst['y_tst']
+    y_test_pred = df_tst['y_tst_pred']
+
+    if mode == 'data_aug':
+        y_aug = df_aug['y_aug']
+        y_aug_pred = df_aug['y_aug_pred']
+
+    # Create scatter plot for training data
+    fig = plt.figure(figsize=(12, 7))
+
+    white_viridis = LinearSegmentedColormap.from_list('white_viridis', [
+        (0, '#ffffff'),
+        (1e-20, '#440053'),
+        (0.2, '#404388'),
+        (0.4, '#2a788e'),
+        (0.6, '#21a784'),
+        (0.8, '#78d151'),
+        (1, '#fde624'),
+    ], N=256)
+
+    ax = fig.add_subplot(1, 2, 1 if mode == 'data_aug' else 1)
+    ax.set_aspect('equal', adjustable='box')
+    min_val, max_val = np.percentile(np.concatenate([y_train, y_train_pred]), [1, 99])
+    density = ax.hist2d(y_train, y_train_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
+    fig.colorbar(density[3], ax=ax, label='Number of points per bin')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Train Data')
+    plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
+
+    # Calculate R-squared value and add it to the plot
+    r2 = r2_score(y_train, y_train_pred)
+    ax.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax.transAxes, fontsize=14,
+            verticalalignment='top')
+
+    if mode == 'data_aug':
+        ax2 = fig.add_subplot(1, 2, 2)
+        ax2.set_aspect('equal', adjustable='box')
+        min_val, max_val = np.percentile(np.concatenate([y_aug, y_aug_pred]), [1, 99])
+        density = ax2.hist2d(y_aug, y_aug_pred, bins=range(int(min_val), int(max_val) + 1), cmap=white_viridis)
+        fig.colorbar(density[3], ax=ax2, label='Number of points per bin')
+        plt.xlabel('True Values')
+        plt.ylabel('Predicted Values')
+        plt.title('Augmented Data')
+        plt.plot([min_val, max_val], [min_val, max_val], 'k-', lw=1)
+
+        # Calculate R-squared value and add it to the plot
+        r2 = r2_score(y_aug, y_aug_pred)
+        ax2.text(0.05, 0.95, f'R-squared = {r2:.2f}', transform=ax2.transAxes, fontsize=14,
+                verticalalignment='top')
+
+    plt.tight_layout()
+    plt.savefig(paths.figures / f'pred_vs_true_{mode}.png')
+
+    # Create scatter plot for test data
+    fig_test = plt.figure(figsize=(12, 7))
+
+    ax_test = fig_test.add_subplot(1, 1, 1)
+    ax_test.set_aspect('equal', adjustable='box')
+    min_val_test, max_val_test = np.percentile(np.concatenate([y_test, y_test_pred]), [1, 99])
+    density_test = ax_test.hist2d(y_test, y_test_pred, bins=range(int(min_val_test), int(max_val_test) + 1), cmap=white_viridis)
+    fig_test.colorbar(density_test[3], ax=ax_test, label='Number of points per bin')
+    plt.xlabel('True Values')
+    plt.ylabel('Predicted Values')
+    plt.title('Test Data')
+    plt.plot([min_val_test, max_val_test], [min_val_test, max_val_test], 'k-', lw=1)
+
+    # Calculate R-squared value and add it to the plot
+    r2_test = r2_score(y_test, y_test_pred)
+    ax_test.text(0.05, 0.95, f'R-squared = {r2_test:.2f}', transform=ax_test.transAxes, fontsize=14,
+        verticalalignment='top')
+
+    plt.tight_layout()
+    plt.savefig(paths.figures / f'pred_vs_true_test_{mode}.png')
+
+    return
