@@ -4,39 +4,36 @@ import shap
 import matplotlib.pyplot as plt
 from config import cfg, paths
 from .model_class import Model
-from .auxiliary_functions import load_processed_data
+from .auxiliary_functions import (
+    load_processed_data,
+    get_split_info,
+    temporal_test_split
+)
 
 def forward_simulation():
 
     # Load the processed data
     dict_dfs = load_processed_data()
 
-    # Clean the dataframes by dropping rows with missing values
-    dict_dfs = {station: dropna_aug(df) for station, df in dict_dfs.items()}
+    # Clean the dataframes based on the predictor columns
+    for station, df in dict_dfs.items():
+        predictor_cols = df.filter(regex='^(met_|cro_)').columns
+        df_stn_clean = df.dropna(subset=predictor_cols)
+        dict_dfs[station] = df_stn_clean
     
     # Load the models for every mode
     dict_models = {}
     for mode in cfg.modes().keys():
-        # Define the number of cross validation splits, with default 1 and no suffix
-        n_splits = 1
-        suffix = ''
 
-        # If in temporal mode, use the number of temporal splits and corresponding suffix
-        if cfg.temporal_split:
-            n_splits = cfg.n_temporal_splits
-            suffix = 'temp_split'
+        # Get the number of splits and suffix
+        n_splits, suffix = get_split_info(mode)
 
-        # If in data augmentation mode, use the number of test stations
-        elif mode == 'data_aug':
-            n_splits = len(cfg.tst_stn)
-            suffix = 'aug_split'
-
-        # Load the models, also for all temp splits
+        # Load the models for each cross validation split
         model_list = []
-        for i in range(n_splits):
+        for s in range(n_splits):
             model = Model(mode)
             model.load_hps()
-            model.load_model(suffix='_'.join([suffix, str(i)]) if suffix else '')
+            model.load_model(suffix=f"{suffix}_{s}" if suffix else '')
             model_list.append(model)
         dict_models[mode] = model_list
 
@@ -160,12 +157,10 @@ def forward_simulation():
             if cfg.temporal_split:
                 y = None
                 X_trn, X_tst, _, _ = temporal_test_split(trn_dfs, y, s)
-                X_trn, X_tst = pd.concat(X_trn), pd.concat(X_tst)
             else:
-                X_trn, X_tst = trn_dfs, tst_dfs[s]
-                X_trn = pd.concat(X_trn)
+                X_trn, X_tst = pd.concat(trn_dfs), tst_dfs[s]
 
-            # Randomly sample the test data for the explanations if specified
+            # Randomly sample the test data for the explanations, if specified
             X_tst_explain = X_tst.sample(frac=1 - cfg.drop_data_expl)
             if len(X_tst_explain) < 10:
                 X_tst_explain = X_tst.sample(n=10)
@@ -175,6 +170,8 @@ def forward_simulation():
             explainer = shap.Explainer(model.predict, X_trn)
             try:
                 explanation = explainer(X_tst_explain)
+
+            # If the additivity check fails, re-run the explainer without it
             except Exception as e:
                 print(e)
                 print("Re-running the SHAP explainer with check_additivity=False.")
@@ -183,54 +180,14 @@ def forward_simulation():
             # Append the explanation to the FeatureImportances object
             feature_importances.append_explanation(explanation, s)
             
-        # Save the explanation object to multiple csv files
+        # Save the feature importances to multiple csv files and plot them
         feature_importances.save_to_csv()
-
-        # Plot the feature importances
         feature_importances.plot_feature_importances()
 
     return
 
 ###############################################################################
-
-def dropna_aug(df): # Change function name, add to auxiliary_functions.py!!!
-
-    # Drop rows with missing values in the predictors
-    predictor_cols = df.filter(regex='^(met_|cro_)').columns
-    df_stn_clean = df.dropna(subset=predictor_cols)
-
-    return df_stn_clean
-
-###############################################################################
-
-def temporal_test_split(X, y, split_idx): # Add to auxiliary_functions.py!!!
-
-    # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
-
-    # Initialize lists to store the training and validation data
-    X_trn, y_trn, X_tst, y_tst = [], [], [], []
-
-    for i, station in enumerate(cfg.trn_stn):
-
-        # Retrieve the split dates for the current station and split
-        tst_start_date, tst_end_date, val_start_date, val_end_date = \
-            df_split_dates.loc[(station, split_idx)].values
-        
-        # Filter the trn and tst data conditions for the current station and split
-        trn_cond = (X[i].index < tst_start_date) | \
-                   (X[i].index >= tst_end_date)
-        tst_cond = (X[i].index >= tst_start_date) & \
-                   (X[i].index < tst_end_date)
-        # Append the training and test data
-        X_trn.append(X[i].loc[trn_cond])
-        X_tst.append(X[i].loc[tst_cond])
-        if y is not None:
-            y_trn.append(y[i].loc[trn_cond])
-            y_tst.append(y[i].loc[tst_cond])          
-
-    return X_trn, X_tst, y_trn, y_tst
-
+# FEATURE IMPORTANCES CLASS
 ###############################################################################
 
 class FeatureImportances:

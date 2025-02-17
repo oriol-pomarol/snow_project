@@ -8,6 +8,8 @@ from .auxiliary_functions import (
     find_temporal_split_dates,
     data_aug_split,
     replace_obs_dropna,
+    temporal_validation_split,
+    station_validation_split,
 )
 
 def model_selection():
@@ -201,59 +203,3 @@ def save_hp_losses(models, losses, mean_losses, mode):
     df_losses.to_csv(paths.outputs / f'model_losses_{mode}.csv')
 
     return
-
-###############################################################################
-# DATA SPLIT FUNCTIONS
-###############################################################################
-
-def station_validation_split(X, y, i):
-
-    # Take one station for testing
-    X_tst = X[i]
-    y_tst = y[i]
-
-    # Concatenate the remaining stations for training
-    X_trn = pd.concat([X[j] for j in range(len(X)) if j!=i])
-    y_trn = pd.concat([y[j] for j in range(len(y)) if j!=i])
-
-    return X_trn, X_tst, y_trn, y_tst
-
-###############################################################################
-
-def temporal_validation_split(X, y, split_idx):
-
-    # Specify the columns that should be parsed as dates
-    date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
-
-    # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1], parse_dates=date_columns)
-
-    # Initialize lists to store the training and validation data
-    X_trn, y_trn, X_val, y_val = [], [], [], []
-
-    for i, station in enumerate(cfg.trn_stn):
-
-        # Retrieve the split dates for the current station and split
-        tst_start_date, tst_end_date, val_start_date, val_end_date = \
-            df_split_dates.loc[(station, split_idx)].values
-        
-        # Get the trn/val conditions for the current station and split
-        trn_cond = ((X[i].index < tst_start_date) | \
-                    (X[i].index >= tst_end_date)) & \
-                   ((X[i].index < val_start_date) | \
-                    (X[i].index >= val_end_date))
-     
-        val_cond = (X[i].index >= val_start_date) & \
-                   (X[i].index < val_end_date)
-
-        # Append the training and validation data
-        X_trn.append(X[i].loc[trn_cond])
-        y_trn.append(y[i].loc[trn_cond])
-        X_val.append(X[i].loc[val_cond])
-        y_val.append(y[i].loc[val_cond])        
-
-    # Concatenate the training and validation data
-    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
-    X_val, y_val = pd.concat(X_val), pd.concat(y_val)
-
-    return X_trn, X_val, y_trn, y_val

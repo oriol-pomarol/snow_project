@@ -4,7 +4,9 @@ from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
     replace_obs_dropna,
-    data_aug_split
+    data_aug_split,
+    get_split_info,
+    temporal_test_split
 )
 
 def model_training():
@@ -27,15 +29,7 @@ def model_training():
         print(f'Starting {mode} training...')
                     
         # Set the number of cross validation splits to a default of 1
-        n_splits = 1
-
-        # If in temporal mode, use the number defined in the config
-        if cfg.temporal_split:
-            n_splits = cfg.n_temporal_splits
-
-        # If in spatial and data_aug modes, use the number of test stations
-        elif mode == 'data_aug':
-            n_splits = len(cfg.tst_stn)
+        n_splits, suffix = get_split_info(mode)
 
         # Initialize a df to store the predictions
         df_trn = pd.DataFrame(columns=['y_trn', 'y_trn_pred', 'split'])
@@ -96,7 +90,7 @@ def model_training():
 
             # Fit the model to the training data and save it
             model.fit(X_trn, y_trn, save_train_history = True, sample_weight = sample_weight)
-            model.save_model(suffix=suffix)
+            model.save_model(suffix=f"{suffix}_{s}" if suffix else '')
 
             # Predict the delta SWE for the training and test data
             y_trn_pred = model.predict(X_trn).ravel()
@@ -130,41 +124,3 @@ def model_training():
         print(f'{mode} trained successfully...')
 
     return
-
-###############################################################################
-# DATA SPLIT FUNCTIONS
-###############################################################################
-
-def temporal_test_split(X, y, split_idx):
-
-    # Specify the columns that should be parsed as dates
-    date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
-
-    # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1], parse_dates=date_columns)
-
-    # Initialize lists to store the training and validation data
-    X_trn, y_trn, X_tst, y_tst = [], [], [], []
-
-    for i, station in enumerate(cfg.trn_stn):
-
-        # Retrieve the split dates for the current station and split
-        tst_start_date, tst_end_date, val_start_date, val_end_date = \
-            df_split_dates.loc[(station, split_idx)].values
-        
-        # Filter the trn and tst data conditions for the current station and split
-        trn_cond = (X[i].index < tst_start_date) | \
-                   (X[i].index >= tst_end_date)
-        tst_cond = (X[i].index >= tst_start_date) & \
-                   (X[i].index < tst_end_date)
-        # Append the training and test data
-        X_trn.append(X[i].loc[trn_cond])
-        y_trn.append(y[i].loc[trn_cond])
-        X_tst.append(X[i].loc[tst_cond])
-        y_tst.append(y[i].loc[tst_cond])
-
-    # Concatenate the training and test data
-    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
-    X_tst, y_tst = pd.concat(X_tst), pd.concat(y_tst)
-
-    return X_trn, X_tst, y_trn, y_tst

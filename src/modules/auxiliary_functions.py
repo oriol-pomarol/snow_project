@@ -291,3 +291,118 @@ def replace_obs_dropna(aug_df):
     aug_df.dropna(inplace=True)
 
     return aug_df
+
+###############################################################################
+
+def get_split_info(mode):
+    """
+    Report the number of cross validation splits and suffix corresponding
+    to the provided mode.
+    """
+    # Default is 1 split and no suffix
+    n_splits = 1
+    suffix = ''
+
+    # If in temporal mode, use the value from config and set the suffix
+    if cfg.temporal_split:
+        n_splits = cfg.n_temporal_splits
+        suffix = 'temp_split'
+
+    # If in data augmentation mode, use the number of test stations
+    elif mode == 'data_aug':
+        n_splits = len(cfg.tst_stn)
+        suffix = 'aug_split'
+
+    return n_splits, suffix
+
+###############################################################################
+# DATA SPLIT FUNCTIONS
+###############################################################################
+
+def station_validation_split(X, y, i):
+
+    # Take one station for testing
+    X_tst = X[i]
+    y_tst = y[i]
+
+    # Concatenate the remaining stations for training
+    X_trn = pd.concat([X[j] for j in range(len(X)) if j!=i])
+    y_trn = pd.concat([y[j] for j in range(len(y)) if j!=i])
+
+    return X_trn, X_tst, y_trn, y_tst
+
+###############################################################################
+
+def temporal_validation_split(X, y, split_idx):
+
+    # Specify the columns that should be parsed as dates
+    date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
+
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1], parse_dates=date_columns)
+
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_val, y_val = [], [], [], []
+
+    for i, station in enumerate(cfg.trn_stn):
+
+        # Retrieve the split dates for the current station and split
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Get the trn/val conditions for the current station and split
+        trn_cond = ((X[i].index < tst_start_date) | \
+                    (X[i].index >= tst_end_date)) & \
+                   ((X[i].index < val_start_date) | \
+                    (X[i].index >= val_end_date))
+     
+        val_cond = (X[i].index >= val_start_date) & \
+                   (X[i].index < val_end_date)
+
+        # Append the training and validation data
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_val.append(X[i].loc[val_cond])
+        y_val.append(y[i].loc[val_cond])        
+
+    # Concatenate the training and validation data
+    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
+    X_val, y_val = pd.concat(X_val), pd.concat(y_val)
+
+    return X_trn, X_val, y_trn, y_val
+
+###############################################################################
+
+def temporal_test_split(X, y, split_idx):
+
+    # Specify the columns that should be parsed as dates
+    date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
+
+    # Load the split dates
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1], parse_dates=date_columns)
+
+    # Initialize lists to store the training and validation data
+    X_trn, y_trn, X_tst, y_tst = [], [], [], []
+
+    for i, station in enumerate(cfg.trn_stn):
+
+        # Retrieve the split dates for the current station and split
+        tst_start_date, tst_end_date, val_start_date, val_end_date = \
+            df_split_dates.loc[(station, split_idx)].values
+        
+        # Filter the trn and tst data conditions for the current station and split
+        trn_cond = (X[i].index < tst_start_date) | \
+                   (X[i].index >= tst_end_date)
+        tst_cond = (X[i].index >= tst_start_date) & \
+                   (X[i].index < tst_end_date)
+        # Append the training and test data
+        X_trn.append(X[i].loc[trn_cond])
+        y_trn.append(y[i].loc[trn_cond])
+        X_tst.append(X[i].loc[tst_cond])
+        y_tst.append(y[i].loc[tst_cond])
+
+    # Concatenate the training and test data
+    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
+    X_tst, y_tst = pd.concat(X_tst), pd.concat(y_tst)
+
+    return X_trn, X_tst, y_trn, y_tst
