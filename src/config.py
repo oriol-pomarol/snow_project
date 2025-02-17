@@ -3,6 +3,8 @@ from pathlib import Path
 
 @dataclass()
 class cfg:
+
+    # Define the simulation parameters
     n_temporal_splits: int = 5
     drop_data: float = 0.0
     drop_data_expl: float = 0.0
