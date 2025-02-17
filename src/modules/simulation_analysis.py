@@ -1,47 +1,32 @@
 import pandas as pd
 import numpy as np
-import calendar
-import fastdtw
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.metrics import r2_score
 from config import cfg, paths
+from modules.auxiliary_functions import mask_measurements_by_year
 
 def simulation_analysis():
 
-    # Make the plots for the predicted vs true values
+    # Make the plots for the predicted vs true dSWE values
     for mode in cfg.modes().keys():
 
         # Load the train, test and augmented dataframes
         df_trn = pd.read_csv(paths.temp / f'pred_vs_true_{mode}.csv')
         df_tst = pd.read_csv(paths.temp / f'pred_vs_true_tst_{mode}.csv')
+        df_aug = None
         if mode == 'data_aug':
             df_aug = pd.read_csv(paths.temp / f'pred_vs_true_{mode}_aug.csv')
 
         # Make a plot of the predicted vs true values
         plot_pred_vs_true(mode, df_trn, df_tst, df_aug)
 
-    # Create a list with the simulation modes and add Crocus simulations
-    sim_modes = ['mod_swe'] + list(cfg.modes().keys())
+    # Load the split dates and convert them to datetime
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
+    df_split_dates = df_split_dates.apply(pd.to_datetime)
 
-    # Define the metrics
-    metrics = [
-        Metric('rmse', root_mean_squared_error, sim_modes),
-        Metric('mae', mean_absolute_error, sim_modes),
-        Metric('mbe', mean_bias_error, sim_modes),
-        Metric('nse', nash_sutcliffe_efficiency, sim_modes),
-        Metric('dtw', dynamic_time_warping, sim_modes)
-    ]
-
-    if cfg.temporal_split:
-        # Load the split dates
-        df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
-
-        # Convert all columns to a datetime format
-        df_split_dates = df_split_dates.apply(pd.to_datetime)
-
-    # Load the true and simulated snow data for each station
+    # Load the measured and simulated snow data for each station
     dict_dfs = {}
     for station_name in cfg.station_names:
         # Load the obs and mod data
@@ -62,54 +47,14 @@ def simulation_analysis():
         # Add the data to the dictionary
         dict_dfs[station_name] = df_station
 
-    # Start a list to store the test station's dataframes
-    test_stations_dfs = []
-
-    # Find the nNSE and store them in the dataframe for each station
-    for station_name in cfg.station_names:
-
-        # Calculate the nNSE for the training set if in temporal split
-        if cfg.temporal_split and (station_name in cfg.trn_stn):
-
-            # Find the start and end dates for the testing set
-            tst_start_date = df_split_dates.loc[(station_name, 0), 'tst_start_date']
-            tst_end_date = df_split_dates.loc[(station_name, 0), 'tst_end_date']
-            split_dates = tst_start_date, tst_end_date
-
-            # Mask the measurements by testing sets
-            df_test = mask_measurements_by_year(dict_dfs[station_name].dropna(), 'test', split_dates)
-            
-            # Calculate and append the metrics
-            for metric in metrics:
-                metric.calculate_and_append(df_test, station_name)
-
-            # Append df to the list of test stations if it is a train station
-            test_stations_dfs.append(df_test)
-        
-        # Calculate the nNSE for the whole station if in station split
-        else:
-            for metric in metrics:
-                metric.calculate_and_append(dict_dfs[station_name].dropna(), station_name)
-
-            # Append df to the list of test stations if it is a test station
-            if (not cfg.temporal_split) and (station_name in cfg.tst_stn):
-                test_stations_dfs.append(dict_dfs[station_name])
-    
-    # Concatenate the DataFrames for the test stations
-    df_test = pd.concat(test_stations_dfs)
-
-    # Calculate the metrics for all observations and save the results
-    for metric in metrics:
-        metric.calculate_and_append(df_test, 'TEST')
-        metric.save()
-
     # If cfg.station_years is not empty, create a folder with the figures
     if cfg.station_years:
-
-        # Create a folder named fwd_sim in the figures directory
         (paths.figures / 'fwd_sim').mkdir(exist_ok=True)
 
-    for station_year in cfg.station_years:
+    # Define the station years to plot
+    station_years = ('cdp_2000', 'cdp_2001', 'cdp_2002', 'cdp_2003', 'cdp_2004', 'cdp_2005', 'cdp_2006', 'cdp_2007', 'cdp_2008', 'cdp_2009', 'cdp_2010','rme_1990', 'rme_1991', 'rme_1992', 'rme_1993', 'rme_1994', 'rme_1995', 'rme_1996', 'rme_1997', 'rme_1998', 'rme_1999', 'rme_2000','sod_2007', 'sod_2008', 'sod_2009', 'sod_2010', 'sod_2011', 'sod_2012','oas_all', 'obs_all', 'ojp_all', 'sap_all', 'snb_all', 'swa_all', 'wfj_all', 'all_all')
+
+    for station_year in station_years:
 
         station_name, year = station_year.split("_")
 
@@ -148,11 +93,9 @@ def simulation_analysis():
 
             # Plot the observed SWE and calculate the nNSE
             for column_name in df_masked.columns:
-                nse = nash_sutcliffe_efficiency(df_masked_clean["obs_swe"],
-                                                df_masked_clean[column_name])
                 clean_column = df_masked[column_name].dropna()                
                 ax.plot(clean_column.index, clean_column,
-                        label=f'{column_name} (NSE: {nse:.2f})')
+                        label=column_name)
 
             # Create the legend
             ax.legend(fontsize='large')
@@ -167,290 +110,10 @@ def simulation_analysis():
             plt.savefig(paths.figures / 'fwd_sim' / f'{station_name}_{year}.png')
             plt.close()
 
-    # Create a folder named error_analysis in the figures directory
-    (paths.figures / 'error_analysis').mkdir(exist_ok=True)
-
-    # Plot the error depending on the month of the year for each station
-    for station_name in cfg.station_names:
-        
-        # Get the data for the station and clean it
-        df_station = dict_dfs[station_name]
-        df_clean = df_station.dropna()
-
-        # Obtain the difference between the observed and simulated SWE
-        residuals = {}
-        rel_residuals = {}
-        for column_name in df_clean.columns:
-            if column_name != 'obs_swe':
-                residuals[column_name] = abs(df_clean['obs_swe'] - df_clean[column_name])
-                rel_residuals[column_name] = df_clean.apply(
-                    lambda row: 0 if row['obs_swe'] == 0 else abs(row['obs_swe'] - row[column_name]) / row['obs_swe'], axis=1)
-        df_res = pd.DataFrame(residuals, index=df_clean.index)
-        df_rel = pd.DataFrame(rel_residuals, index=df_clean.index)
-
-        # Average the the residuals by the month of the year
-        df_monthly_res = df_res.groupby(df_res.index.month).mean()
-        df_monthly_rel = df_rel.groupby(df_rel.index.month).mean()
-
-        # Obtain the number of measurements by month
-        obs_count = df_clean['obs_swe'].groupby(df_clean.index.month).count()
-
-        # Map numerical month values to month names and reorder to start from July
-        months = [calendar.month_abbr[i] for i in range(7, 13)] + [calendar.month_abbr[i] for i in range(1, 7)]        
-
-        # Reorder the index to start from July
-        df_monthly_res = df_monthly_res.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
-        df_monthly_rel = df_monthly_rel.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
-        obs_count = obs_count.reindex([7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]).fillna(0)
-
-        # Plot the results
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
-
-        # First subplot for df_monthly_res
-        for column_name in df_monthly_res.columns:
-            ax1.plot(months, df_monthly_res[column_name], label=column_name)
-
-        # Set the labels and ticks
-        ax1.legend(fontsize='large')
-        ax1.set_ylabel('Error')
-        ax1.tick_params(axis='x', rotation=45)
-
-        # Plot the histogram of the number of observations in the background
-        ax1t = ax1.twinx()
-        ax1t.bar(months, obs_count, alpha=0.2, color='gray')
-        ax1t.set_ylabel('Number of measurements')
-
-        # Second subplot for df_monthly_rel
-        for column_name in df_monthly_rel.columns:
-            ax2.plot(months, df_monthly_rel[column_name], label=column_name)
-
-        # Set the labels and ticks
-        ax2.set_xlabel('Month')
-        ax2.set_ylabel('Relative Error')
-        ax2.tick_params(axis='x', rotation=45)
-
-        # Plot the histogram of the number of observations in the background
-        ax2t = ax2.twinx()
-        ax2t.bar(months, obs_count, alpha=0.2, color='gray')
-        ax2t.set_ylabel('Number of measurements')
-
-        # Set a tight layout and save the figure
-        plt.tight_layout()
-        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_monthly_error.png')
-
-        # Get the number of measurements and mean error by bin
-        df_bins = df_res.copy()
-        df_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
-        df_bins_count = df_bins.groupby('obs_swe').count().fillna(0)
-        df_bins = df_bins.groupby('obs_swe').mean()
-
-        # Average the relative residuals by bins of the observed SWE
-        df_rel_bins = df_rel.copy()
-        df_rel_bins['obs_swe'] = pd.cut(df_clean['obs_swe'], bins=10)
-        df_rel_bins = df_rel_bins.groupby('obs_swe').mean()
-
-        # Plot the results
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
-
-        # First subplot for df_bins
-        for column_name in df_bins.columns:
-            ax1.plot(df_bins.index.astype(str), df_bins[column_name], label=column_name)
-
-        # Set the labels and ticks
-        ax1.legend(fontsize='large')
-        ax1.set_ylabel('Error')
-        for label in ax1.get_xticklabels():
-            label.set_ha('right')
-            label.set_rotation(45)
-
-        # Plot the histogram of the number of observations in the background
-        ax1t = ax1.twinx()
-        ax1t.bar(df_bins_count.index.astype(str), df_bins_count['mod_swe'], alpha=0.2, color='gray')
-        ax1t.set_ylabel('Number of measurements')
-
-        # Second subplot for df_rel_bins
-        for column_name in df_rel_bins.columns:
-            ax2.plot(df_rel_bins.index.astype(str), df_rel_bins[column_name], label=column_name)
-
-        # Set the labels and ticks
-        ax2.set_xlabel('Observed SWE')
-        ax2.set_ylabel('Relative Error')
-        for label in ax2.get_xticklabels():
-            label.set_ha('right')
-            label.set_rotation(45)
-        
-        # Plot the histogram of the number of observations in the background
-        ax2t = ax2.twinx()
-        ax2t.bar(df_bins_count.index.astype(str), df_bins_count['mod_swe'], alpha=0.2, color='gray')
-        ax2t.set_ylabel('Number of measurements')
-
-        # Set a tight layout and save the figure
-        plt.tight_layout()
-        plt.savefig(paths.figures / 'error_analysis' / f'{station_name}_binned_error.png')
-
-        # Close all figures
-        plt.close('all')
-
-    # Analyse the peak SWE and date of snowmelt for the train stations
-    for station_name in cfg.trn_stn:
-        df_station = dict_dfs[station_name]
-
-        # Move the index 6 months back to start from July
-        df_station.index = df_station.index - pd.DateOffset(months=6)
-
-        # Group the snow observations by year and get the maximum value
-        df_yearly_max = df_station.groupby(df_station.index.year).max()
-
-        # Remove the rows for which the year is not complete
-        df_yearly_count = df_station.groupby(df_station.index.year).count()
-        valid_years = df_yearly_count[df_yearly_count['mod_swe'] > 300].index
-        df_yearly_max = df_yearly_max.loc[valid_years]
-
-        # Set rows in obs_swe to NaN if there are less than 100 observations
-        df_yearly_count_obs = df_station.groupby(df_station.index.year)['obs_swe'].count()
-        invalid_years = df_yearly_count_obs[df_yearly_count_obs < 100].index
-        invalid_years = [year for year in invalid_years if year in valid_years]
-        df_yearly_max.loc[df_yearly_max.index.isin(invalid_years), 'obs_swe'] = np.nan
-        if invalid_years:
-            print('Years with less than 100 observations:', invalid_years)
-
-        # Make a plot of the maximum observed SWE by year
-        fig, ax = plt.subplots(figsize=(8, 6))
-
-        # Copy the df and change the index to a datetime object
-        df_yearly_max_plot = df_yearly_max.copy()
-        df_yearly_max_plot.index = pd.to_datetime(df_yearly_max.index, format='%Y')
-        df_yearly_max_plot.plot(ax=ax)
-
-        # Add the axis labels
-        plt.xlabel('Year')
-        plt.ylabel('Maximum SWE (mm)')
-        plt.legend()
-        plt.savefig(paths.figures / f'{station_name}_peak_swe.png')
-
-        # Gather the snowmelt dates for each year
-        snowmelt_dates = {}
-        for year in df_yearly_max.index:
-
-            # Get the maximum SWE for the year
-            df_year = df_station.loc[df_station.index.year == year]
-
-            # For each of the columns in df_station, find at which date there is no snow
-            first_no_snow_dates = []
-            for column_name in df_year.columns:
-
-                # Find the first date with no snow between March and June (inclusive)
-                no_snow_dates = df_year.index[(df_year[column_name] < 1) & (df_year.index.month >=9)]
-                first_no_snow = (no_snow_dates + pd.DateOffset(months=6)).min()
-
-                # Check if there is a date with no snow
-                if not pd.isnull(first_no_snow):
-                    first_no_snow_dates.append(first_no_snow)
-                else:
-                    first_no_snow_dates.append(pd.NaT)
-
-            # Add the dates to the dictionary
-            snowmelt_dates[year] = first_no_snow_dates
-
-        # Convert the dictionary to a dataframe, where each year is a row and each column is a simulation mode
-        df_snowmelt_dates = pd.DataFrame.from_dict(snowmelt_dates, orient='index', columns=df_yearly_max.columns)
-
-        # Create a new dataframe with the day of the year of the snowmelt date
-        doy = df_snowmelt_dates.copy()
-        doy = doy.apply(lambda row: row.dt.dayofyear)
-
-        # Plot the snowmelt day of the year for each year
-        fig, ax = plt.subplots(figsize=(10, 6))
-        doy.plot(ax=ax, label=column_name)
-
-        # Add the axis labels
-        plt.xlabel('Year')
-        plt.ylabel('Snowmelt date (DoY)')
-        plt.legend()
-        plt.savefig(paths.figures / f'{station_name}_snowmelt_date.png')
-
-        # Add the mean peak SWE as an additional row and store the results in a CSV file
-        df_yearly_max.loc['MEAN'] = df_yearly_max.mean()
-        df_yearly_max.to_csv(paths.outputs / f'peak_swe_{station_name}.csv')
-
-        # Add the mean doy as an additional row and store the results in a CSV file
-        doy.loc['MEAN'] = doy.mean()
-        doy.to_csv(paths.outputs / f'snowmelt_date_{station_name}.csv')
-
     return
 
 ###############################################################################
-# EXTRA FUNCTIONS
-###############################################################################
-
-def mask_measurements_by_year(df, year, split_dates=None):
-
-    # If the dataframe is empty or the year is 'all', return the dataframe
-    if (len(df) == 0) or (year == 'all'):
-        return df
-
-    # If the year is 'train', 'test', or a specific year, mask the data
-    elif year == 'train':
-        mask = (df.index < split_dates[0]) | (df.index >= split_dates[1])
-
-    elif year == 'test':
-        mask = (df.index >= split_dates[0]) & (df.index < split_dates[1])
-
-    elif year.isdigit():
-        year = int(year)
-        start_date = pd.to_datetime(f'{year}-07-01')
-        end_date = pd.to_datetime(f'{year + 1}-07-01')
-        mask = (df.index >= start_date) & (df.index < end_date)
-        
-    else:
-        raise ValueError(f'Invalid input year: {year}')
-    
-    return df[mask]
-
-###############################################################################
-
-def root_mean_squared_error(obs, sim):
-    if len(obs) < 1:
-        return float('nan')
-    return np.sqrt(np.mean((obs - sim) ** 2))
-
-def mean_absolute_error(obs, sim):
-    if len(obs) < 1:
-        return float('nan')
-    return np.mean(np.abs(obs - sim))
-
-def mean_bias_error(obs, sim):
-    if len(obs) < 1:
-        return float('nan')
-    return np.mean(sim - obs)
-
-def nash_sutcliffe_efficiency(obs, sim):
-    if len(obs) < 2:
-        return float('nan')
-    return 1 - np.sum((obs - sim) ** 2) / np.sum((obs - np.mean(obs)) ** 2)
-
-def dynamic_time_warping(obs, sim):
-    if len(obs) < 1:
-        return float('nan')
-    return fastdtw.dtw(obs, sim, dist=2)[0]/len(obs)
-
-###############################################################################
-
-class Metric:
-    def __init__(self, name, func, sim_modes):
-        self.name = name
-        self.func = func
-        self.df = pd.DataFrame(columns = sim_modes + ['n'])
-        self.sim_modes = sim_modes
-
-    def calculate_and_append(self, data, name):
-        self.df.loc[name] = [self.func(data['obs_swe'], data[mode]) for mode in self.sim_modes] + [len(data)]
-
-    def save(self):
-        self.df.to_csv(paths.outputs / f'fwd_sim_{self.name}.csv')
-
-###############################################################################
-# TEST PLOT FUNCTIONS
+# PLOT FUNCTIONS
 ###############################################################################
 
 def plot_pred_vs_true(mode, df_trn, df_tst, df_aug=None):

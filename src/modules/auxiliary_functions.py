@@ -316,6 +316,33 @@ def get_split_info(mode):
     return n_splits, suffix
 
 ###############################################################################
+
+def mask_measurements_by_year(df, year, split_dates=None):
+
+    # If the dataframe is empty or the year is 'all', return the dataframe
+    if (len(df) == 0) or (year == 'all'):
+        return df
+
+    # If the year is 'train', 'test', or a specific year, mask the data
+    elif year == 'train':
+        mask = (df.index < split_dates[0]) | (df.index >= split_dates[1])
+
+    elif year == 'test':
+        mask = (df.index >= split_dates[0]) & (df.index < split_dates[1])
+
+    elif year.isdigit():
+        year = int(year)
+        start_date = pd.to_datetime(f'{year}-07-01')
+        end_date = pd.to_datetime(f'{year + 1}-07-01')
+        mask = (df.index >= start_date) & (df.index < end_date)
+        
+    else:
+        raise ValueError(f'Invalid input year: {year}')
+    
+    return df[mask]
+
+
+###############################################################################
 # DATA SPLIT FUNCTIONS
 ###############################################################################
 
