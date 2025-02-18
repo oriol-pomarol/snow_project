@@ -4,8 +4,8 @@ from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
     replace_obs_dropna,
-    data_aug_split,
-    get_split_info,
+    integrate_aug_data,
+    get_cv_info,
     temporal_test_split
 )
 
@@ -29,7 +29,7 @@ def model_training():
         print(f'Starting {mode} training...')
                     
         # Set the number of cross validation splits to a default of 1
-        n_splits, suffix = get_split_info(mode)
+        n_splits, suffix = get_cv_info(mode)
 
         # Initialize a df to store the predictions
         df_trn = pd.DataFrame(columns=['y_trn', 'y_trn_pred', 'split'])
@@ -82,7 +82,7 @@ def model_training():
                 
                 # Append the augmented data to the training set
                 X_trn, y_trn, sample_weight = \
-                    data_aug_split(X_trn, y_trn, X_aug, y_aug, model.rel_weight)
+                    integrate_aug_data(X_trn, y_trn, X_aug, y_aug, model.rel_weight)
 
             # Count the number of meteo variables and create the model
             n_met_vars = sum([1 for col in X_trn.columns if col.startswith('met_')])

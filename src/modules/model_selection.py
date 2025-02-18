@@ -6,7 +6,7 @@ from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
     find_temporal_split_dates,
-    data_aug_split,
+    integrate_aug_data,
     replace_obs_dropna,
     temporal_validation_split,
     station_validation_split,
@@ -165,7 +165,7 @@ def get_losses(X, y, X_aug, y_aug, models, mode):
             # Add the augmented data if in the corresponding mode
             if mode == 'data_aug':
                 X_trn, y_trn, sample_weight = \
-                    data_aug_split(X_trn, y_trn, X_aug, y_aug, model.rel_weight)
+                    integrate_aug_data(X_trn, y_trn, X_aug, y_aug, model.rel_weight)
             else:
                 sample_weight = None
 

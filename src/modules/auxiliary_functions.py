@@ -6,53 +6,23 @@ import pytz
 from config import cfg, paths
 
 ###############################################################################
-# GENERAL FUNCTIONS
-###############################################################################
-
-def load_processed_data():
-    
-    # Initialize a dictionary to store the dataframes
-    dict_dfs = {}
-
-    # Load the processed data for each station
-    for station_name in cfg.station_names:
-        filename = f"df_{station_name}_lag_{cfg.lag}.csv"
-        df_station = pd.read_csv(paths.proc_data / filename, index_col=0)
-        df_station.index = pd.to_datetime(df_station.index)
-        dict_dfs[station_name] = df_station
-    return dict_dfs
-
-###############################################################################
-
-def preprocess_data_lstm(X):
-
-    # Split between meteorological and additional variables
-    X_met = X.filter(regex='^met_').values
-    X_add = X.filter(regex='^(?!met_)').values
-
-    # Add extra dimension if the input is 1D
-    if X_met.ndim == 1:
-        X_met = np.expand_dims(X_met, axis=0)
-
-    # Reshape the array by splitting it along the last axis
-    new_shape = X_met.shape[:-1] + (X_met.shape[-1] // cfg.lag, cfg.lag)
-    transformed_X_met = X_met.reshape(new_shape)
-
-    # Transpose the subarrays to get the desired structure
-    output_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
-
-    # If available, return the additonal variables as well 
-    if X_add.shape[1] > 0:
-        return output_X_met, X_add
-
-    return output_X_met
-
-
-###############################################################################
 # METEOROLOGICAL FUNCTIONS
 ###############################################################################
 
 def calculate_sunrise_sunset(latitude, longitude, date, timezone):
+    """
+    Calculate the sunrise and sunset times for a given location and date.
+    
+    Parameters:
+    latitude (float): The latitude of the location in degrees.
+    longitude (float): The longitude of the location in degrees.
+    date (datetime): The date for which to calculate the sunrise and sunset.
+    timezone (str): The timezone of the location.
+
+    Returns:
+    previous_sunset (datetime.time): The time of the previous sunset.
+    sunrise (datetime.time): The time of the sunrise.
+    """
     # Create an observer object
     observer = ephem.Observer()
     observer.lon = longitude
@@ -85,6 +55,16 @@ def calculate_sunrise_sunset(latitude, longitude, date, timezone):
 ###############################################################################
 
 def is_daytime(sunset, sunrise):
+    """
+    Check if the current hour is during the day.
+
+    Parameters:
+    sunset (datetime.time): The time of the sunset.
+    sunrise (datetime.time): The time of the sunrise.
+
+    Returns:
+    daytime (np.array): A boolean array indicating if the current hour is during the day.
+    """
     # Check for the exceptions
     if sunrise == "SunAlwaysDown":
         return np.zeros((24,), dtype=bool)
@@ -111,6 +91,18 @@ def is_daytime(sunset, sunrise):
 ###############################################################################
 
 def daytime_average(array, lat_station, lng_station, timezone):
+    """
+    Calculate the average of the array elements during the daytime.
+
+    Parameters:
+    array (pd.Series): The array of values to average.
+    lat_station (float): The latitude of the station in degrees.
+    lng_station (float): The longitude of the station in degrees.
+    timezone (str): The timezone of the station.
+
+    Returns:
+    daytime_avg (float): The average of the array elements during the daytime.
+    """
     # Compute the sunset and sunrise given the location, date and timezone
     sunset, sunrise = calculate_sunrise_sunset(lat_station, lng_station,
                                               array.index[0], timezone)
@@ -129,6 +121,15 @@ def daytime_average(array, lat_station, lng_station, timezone):
 ###############################################################################
 
 def positive_integral(array):
+    """
+    Calculate the integral in time of the positive values in the array.
+
+    Parameters:
+    array (pd.Series): The array of values to integrate.
+
+    Returns:
+    positive_int (float): The integral of the positive values in the array.
+    """
     # Find the time difference between elements in hours
     time_diff = (array.index[1] - array.index[0]).total_seconds() / 3600
 
@@ -143,7 +144,15 @@ def positive_integral(array):
 ###############################################################################
 
 def change_meteo_units(df_agg):
+    """
+    Convert the meteorological variables to the desired units.
 
+    Parameters:
+    df_agg (pd.DataFrame): The aggregated dataframe with the meteorological variables.
+
+    Returns:
+    df_agg (pd.DataFrame): The aggregated dataframe with the converted meteorological variables.
+    """
     # Convert Tair_avg from Kelvin to Celsius
     df_agg['Tair_avg'] = df_agg['Tair_avg'] - 273.15
 
@@ -179,8 +188,19 @@ def change_meteo_units(df_agg):
 ###############################################################################
 
 def add_lagged_values(df):
+    """
+    Add columns containing the lagged values of the dataframe variables.
+
+    Parameters:
+    df (pd.DataFrame): The dataframe with the meteorological variables.
+
+    Returns:
+    new_df (pd.DataFrame): The dataframe with the lagged values.
+    """
+    # Create a copy of the dataframe
     new_df = df.copy()
     
+    # Iterate over the columns and add the lagged values
     for i, col in enumerate(df.columns):
         new_df = pd.concat([new_df.iloc[:, :i*(cfg.lag+1)+1],
                             pd.DataFrame({f'{col}_lag_{j}':df[col].shift(j) \
@@ -188,13 +208,129 @@ def add_lagged_values(df):
                             new_df.iloc[:, i*(cfg.lag+1)+1:]], axis=1)    
     return new_df
 
+###############################################################################
+# DATA PROCESSING FUNCTIONS
+###############################################################################
+
+def load_processed_data():
+    """
+    Load the processed data for each station.
+
+    Returns:
+    dict_dfs (dict): A dictionary containing the dataframes for each station.
+    """
+    # Initialize a dictionary to store the dataframes
+    dict_dfs = {}
+
+    # Load the processed data for each station
+    for station_name in cfg.station_names:
+        filename = f"df_{station_name}_lag_{cfg.lag}.csv"
+        df_station = pd.read_csv(paths.proc_data / filename, index_col=0)
+        df_station.index = pd.to_datetime(df_station.index)
+        dict_dfs[station_name] = df_station
+    return dict_dfs
 
 ###############################################################################
-# EXTRA FUNCTIONS
+
+def preprocess_data_lstm(X):
+    """
+    Preprocess the input data for the LSTM model.
+
+    Parameters:
+    X (pd.DataFrame): The input dataframe with the meteorological variables.
+
+    Returns:
+    output_X_met (np.array): The preprocessed input array with the meteorological variables.
+    """
+    # Split between meteorological and additional variables
+    X_met = X.filter(regex='^met_').values
+    X_add = X.filter(regex='^(?!met_)').values
+
+    # Add extra dimension if the input is 1D
+    if X_met.ndim == 1:
+        X_met = np.expand_dims(X_met, axis=0)
+
+    # Reshape the array by splitting it along the last axis
+    new_shape = X_met.shape[:-1] + (X_met.shape[-1] // cfg.lag, cfg.lag)
+    transformed_X_met = X_met.reshape(new_shape)
+
+    # Transpose the subarrays to get the desired structure
+    output_X_met = np.transpose(transformed_X_met, axes=(0, 2, 1))
+
+    # If available, return the additonal variables as well 
+    if X_add.shape[1] > 0:
+        return output_X_met, X_add
+
+    return output_X_met
+
+###############################################################################
+
+def integrate_aug_data(X_trn, y_trn, X_aug, y_aug, rel_weight):
+    """
+    Integrate the augmented data into the training dataset.
+
+    Parameters:
+    X_trn (pd.DataFrame): The training dataframe with the meteorological variables.
+    y_trn (pd.Series): The training series with the observed SWE values.
+    X_aug (list): The list of dataframes with the augmented meteorological variables.
+    y_aug (list): The list of series with the augmented observed SWE values.
+    rel_weight (float): The relative weight of the augmented data.
+
+    Returns:
+    X_trn (pd.DataFrame): The training dataframe with the integrated augmented meteorological variables.
+    y_trn (pd.Series): The training series with the integrated augmented observed SWE values.
+    sample_weight (np.array): The training weights of the data.
+    """
+    # Concatenate the augmented data
+    X_aug = pd.concat(X_aug)
+    y_aug = pd.concat(y_aug)
+    
+    # Calculate the training weights of the modelled data
+    weight_aug = rel_weight * len(y_trn) / len(y_aug)
+    sample_weight = np.concatenate((np.ones(len(y_trn)), 
+                                    np.full(len(y_aug), weight_aug)))
+    
+    # Concatenate the observed and augmented datasets
+    X_trn = pd.concat([X_trn, X_aug])
+    y_trn = pd.concat([y_trn, y_aug])
+
+    return X_trn, y_trn, sample_weight
+
+###############################################################################
+
+def replace_obs_dropna(aug_df):
+    """
+    Replace the observed SWE values with the modelled ones and drop the rows with NAs.
+    
+    Parameters:
+    aug_df (pd.DataFrame): The augmented dataframe with the observed and modelled SWE values.
+
+    Returns:
+    aug_df (pd.DataFrame): The clean augmented dataframe with the replaced SWE values.
+    """
+    # Drop the observed SWE and derived columns
+    aug_df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
+
+    # Rename the modeled SWE and derived columns
+    aug_df.rename(columns={'mod_swe': 'obs_swe',
+                        'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
+    
+    # Drop the rows with NAs
+    aug_df.dropna(inplace=True)
+
+    return aug_df
+
+###############################################################################
+# DATA SPLIT FUNCTIONS
 ###############################################################################
 
 def find_temporal_split_dates(dfs):
-    
+    """
+    Find the temporal split dates for the training and validation data and save them as a csv.
+
+    Parameters:
+    dfs (list): A list containing the dataframes for each station.
+    """
     # Create an empty list to contain each station's dates
     station_dates = []
 
@@ -259,109 +395,48 @@ def find_temporal_split_dates(dfs):
 
 ###############################################################################
 
-def data_aug_split(X_trn, y_trn, X_aug, y_aug, rel_weight):
-
-    # Concatenate the augmented data
-    X_aug = pd.concat(X_aug)
-    y_aug = pd.concat(y_aug)
-    
-    # Calculate the training weights of the modelled data
-    weight_aug = rel_weight * len(y_trn) / len(y_aug)
-    sample_weight = np.concatenate((np.ones(len(y_trn)), 
-                                    np.full(len(y_aug), weight_aug)))
-    
-    # Concatenate the observed and augmented datasets
-    X_trn = pd.concat([X_trn, X_aug])
-    y_trn = pd.concat([y_trn, y_aug])
-
-    return X_trn, y_trn, sample_weight
-
-###############################################################################
-
-def replace_obs_dropna(aug_df):
-
-    # Drop the observed SWE and derived columns
-    aug_df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
-
-    # Rename the modeled SWE and derived columns
-    aug_df.rename(columns={'mod_swe': 'obs_swe',
-                        'delta_mod_swe': 'delta_obs_swe'}, inplace=True)
-    
-    # Drop the rows with NAs
-    aug_df.dropna(inplace=True)
-
-    return aug_df
-
-###############################################################################
-
-def get_split_info(mode):
+def station_validation_split(X, y, split_idx):
     """
-    Report the number of cross validation splits and suffix corresponding
-    to the provided mode.
-    """
-    # Default is 1 split and no suffix
-    n_splits = 1
-    suffix = ''
-
-    # If in temporal mode, use the value from config and set the suffix
-    if cfg.temporal_split:
-        n_splits = cfg.n_temporal_splits
-        suffix = 'temp_split'
-
-    # If in data augmentation mode, use the number of test stations
-    elif mode == 'data_aug':
-        n_splits = len(cfg.tst_stn)
-        suffix = 'aug_split'
-
-    return n_splits, suffix
-
-###############################################################################
-
-def mask_measurements_by_year(df, year, split_dates=None):
-
-    # If the dataframe is empty or the year is 'all', return the dataframe
-    if (len(df) == 0) or (year == 'all'):
-        return df
-
-    # If the year is 'train', 'test', or a specific year, mask the data
-    elif year == 'train':
-        mask = (df.index < split_dates[0]) | (df.index >= split_dates[1])
-
-    elif year == 'test':
-        mask = (df.index >= split_dates[0]) & (df.index < split_dates[1])
-
-    elif year.isdigit():
-        year = int(year)
-        start_date = pd.to_datetime(f'{year}-07-01')
-        end_date = pd.to_datetime(f'{year + 1}-07-01')
-        mask = (df.index >= start_date) & (df.index < end_date)
-        
-    else:
-        raise ValueError(f'Invalid input year: {year}')
+    Split the data into training and validation sets for a station split.
     
-    return df[mask]
+    Parameters:
+    X (list): A list containing the predictor variable dataframes for each station.
+    y (list): A list containing the target variable dataframes for each station.
+    split_idx (int): The index of the cross validation split.
 
-
-###############################################################################
-# DATA SPLIT FUNCTIONS
-###############################################################################
-
-def station_validation_split(X, y, i):
-
+    Returns:
+    X_trn (pd.DataFrame): The training dataframe with the predictor variables.
+    X_val (pd.DataFrame): The validation dataframe with the predictor variables.
+    y_trn (pd.Series): The training series with the target variables.
+    y_val (pd.Series): The validation series with the target variables.
+    """
     # Take one station for testing
-    X_tst = X[i]
-    y_tst = y[i]
+    X_tst = X[split_idx]
+    y_tst = y[split_idx]
 
     # Concatenate the remaining stations for training
-    X_trn = pd.concat([X[j] for j in range(len(X)) if j!=i])
-    y_trn = pd.concat([y[j] for j in range(len(y)) if j!=i])
+    X_trn = pd.concat([X[j] for j in range(len(X)) if j!=split_idx])
+    y_trn = pd.concat([y[j] for j in range(len(y)) if j!=split_idx])
 
     return X_trn, X_tst, y_trn, y_tst
 
 ###############################################################################
 
 def temporal_validation_split(X, y, split_idx):
+    """
+    Split the data into training and validation sets for a temporal split.
+    
+    Parameters:
+    X (list): A list containing the predictor variable dataframes for each station.
+    y (list): A list containing the target variable dataframes for each station.
+    split_idx (int): The index of the cross validation split.
 
+    Returns:
+    X_trn (pd.DataFrame): The training dataframe with the predictor variables.
+    X_val (pd.DataFrame): The validation dataframe with the predictor variables.
+    y_trn (pd.Series): The training series with the target variables.
+    y_val (pd.Series): The validation series with the target variables.
+    """
     # Specify the columns that should be parsed as dates
     date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
 
@@ -401,7 +476,20 @@ def temporal_validation_split(X, y, split_idx):
 ###############################################################################
 
 def temporal_test_split(X, y, split_idx):
+    """
+    Split the data into training and test sets for a temporal split.
 
+    Parameters:
+    X (list): A list containing the predictor variable dataframes for each station.
+    y (list): A list containing the target variable dataframes for each station.
+    split_idx (int): The index of the cross validation split.
+
+    Returns:
+    X_trn (pd.DataFrame): The training dataframe with the predictor variables.
+    X_tst (pd.DataFrame): The test dataframe with the predictor variables.
+    y_trn (pd.Series): The training series with the target variables.
+    y_tst (pd.Series): The test series with the target variables.
+    """
     # Specify the columns that should be parsed as dates
     date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
 
@@ -433,3 +521,70 @@ def temporal_test_split(X, y, split_idx):
     X_tst, y_tst = pd.concat(X_tst), pd.concat(y_tst)
 
     return X_trn, X_tst, y_trn, y_tst
+
+###############################################################################
+# ADDITIONAL FUNCTIONS
+###############################################################################
+
+def mask_measurements_by_year(df, year, split_dates=None):
+    """
+    Mask the dataframe by year or train/test split.
+
+    Parameters:
+    df (pd.DataFrame): The dataframe to mask.
+    year (str): The year to mask the dataframe.
+    split_dates (list): The list of split dates for the training and test data.
+
+    Returns:
+    df (pd.DataFrame): The masked dataframe.
+    """
+    # If the dataframe is empty or the year is 'all', return the dataframe
+    if (len(df) == 0) or (year == 'all'):
+        return df
+
+    # If the year is 'train', 'test', or a specific year, mask the data
+    elif year == 'train':
+        mask = (df.index < split_dates[0]) | (df.index >= split_dates[1])
+
+    elif year == 'test':
+        mask = (df.index >= split_dates[0]) & (df.index < split_dates[1])
+
+    elif year.isdigit():
+        year = int(year)
+        start_date = pd.to_datetime(f'{year}-07-01')
+        end_date = pd.to_datetime(f'{year + 1}-07-01')
+        mask = (df.index >= start_date) & (df.index < end_date)
+        
+    else:
+        raise ValueError(f'Invalid input year: {year}')
+    
+    return df[mask]
+
+###############################################################################
+
+def get_cv_info(mode):
+    """
+    Report the number of cross validation splits and suffix.
+
+    Parameters:
+    mode (str): The mode of the cross validation.
+
+    Returns:
+    n_splits (int): The number of cross validation splits.
+    suffix (str): The suffix to append to the output files.
+    """
+    # Default is 1 split and no suffix
+    n_splits = 1
+    suffix = ''
+
+    # If in temporal mode, use the value from config and set the suffix
+    if cfg.temporal_split:
+        n_splits = cfg.n_temporal_splits
+        suffix = 'temp_split'
+
+    # If in data augmentation mode, use the number of test stations
+    elif mode == 'data_aug':
+        n_splits = len(cfg.tst_stn)
+        suffix = 'aug_split'
+
+    return n_splits, suffix

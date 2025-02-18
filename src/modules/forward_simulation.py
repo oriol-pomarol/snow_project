@@ -7,7 +7,7 @@ from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
     load_processed_data,
-    get_split_info,
+    get_cv_info,
     temporal_test_split,
     mask_measurements_by_year,
 )
@@ -28,7 +28,7 @@ def forward_simulation():
     for mode in cfg.modes().keys():
 
         # Get the number of splits and suffix
-        n_splits, suffix = get_split_info(mode)
+        n_splits, suffix = get_cv_info(mode)
 
         # Load the models for each cross validation split
         model_list = []
