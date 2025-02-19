@@ -98,7 +98,15 @@ def model_selection():
 ###############################################################################
 
 def initialize_models(mode):
-    
+    """
+    Initialize a list of models with all hyperparameter combinations.
+
+    Parameters:
+    mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
+
+    Returns:
+    models (list): A list of Model objects.
+    """
     # Initialize a list of models
     models = []
 
@@ -141,7 +149,20 @@ def initialize_models(mode):
 ###############################################################################
 
 def get_losses(X, y, X_aug, y_aug, models, mode):
+    """
+    Return the losses for each model after splitting the data into training and validation sets.
 
+    Parameters:
+    X (list): A list of dataframes with the predictor variables.
+    y (list): A list of dataframes with the target variables.
+    X_aug (list): A list of dataframes with the augmented predictor variables.
+    y_aug (list): A list of dataframes with the augmented target variables.
+    models (list): A list of Model objects.
+    mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
+
+    Returns:
+    losses (np.array): An array with the losses for each model and split.
+    """
     # Initialize losses for model validation
     n_splits = cfg.n_temporal_splits if cfg.temporal_split else len(X)
     losses = np.zeros((len(models), n_splits))
@@ -183,8 +204,16 @@ def get_losses(X, y, X_aug, y_aug, models, mode):
 
 ###############################################################################
 
-def save_hp_losses(models, losses, mean_losses, mode):    
+def save_hp_losses(models, losses, mean_losses, mode):
+    """
+    Save the model hyperparameters and their losses to a csv file.
 
+    Parameters:
+    models (list): A list of Model objects.
+    losses (np.array): An array with the losses for each model and split.
+    mean_losses (np.array): An array with the mean losses for each model.
+    mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
+    """
     # Save the model hyperparameters and their losses as a csv
     model_names = [str(model) for model in models]
 

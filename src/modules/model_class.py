@@ -15,10 +15,10 @@ from .auxiliary_functions import preprocess_data_lstm
 class Model:
     def __init__(self, mode):
         """
-        Initialize the Model class.
+        At initialization, set parameters to None and assign the mode.
 
         Parameters:
-        mode (str): The mode of the model (e.g., 'dir_pred', 'post_prc').
+        mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
         """
         self.mode = mode.lower()
         self.model = None

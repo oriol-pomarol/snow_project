@@ -249,6 +249,14 @@ def forward_simulation():
 class FeatureImportances:
 
     def __init__(self, mode, columns):
+        """
+        At initialization, set the mode and columns and start empty
+        DataFrames for all components of the SHAP explainer.
+
+        Parameters:
+        mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
+        columns (list): A list of the feature names.
+        """
         print(f"Initializing feature importances for mode {mode}.")
         self.mode = mode
         self.columns = columns
@@ -257,6 +265,13 @@ class FeatureImportances:
         self.data = pd.DataFrame(columns=['split_idx'] + list(columns))
 
     def append_explanation(self, explanation, split_idx):
+        """
+        Append the SHAP values, base values and data to the corresponding DataFrames.
+
+        Parameters:
+        explanation (shap.Explanation): The SHAP explanation object.
+        split_idx (int): The index of the split.
+        """
 
         print(f"Appending explanation for split {split_idx}.")
         
@@ -278,6 +293,9 @@ class FeatureImportances:
         self.data = pd.concat([self.data, explanation_data], ignore_index=True)
 
     def plot_feature_importances(self):
+        """
+        Plot the feature importances as bar and violin plots and save them as png files.
+        """
 
         # Drop the split_idx column from the DataFrames and convert to numpy arrays
         shap_values = self.shap_values.drop(columns='split_idx').values
@@ -299,6 +317,9 @@ class FeatureImportances:
         plt.savefig(paths.figures / f'shap_vio_{self.mode}.png', bbox_inches="tight")
 
     def save_to_csv(self):
+        """
+        Save the SHAP values, base values and data to csv files.
+        """
         print(f"Saving SHAP values to csv files for mode {self.mode}.")
         # Save the DataFrames to csv files
         self.shap_values.to_csv(paths.temp / 'shap_explanations' /
@@ -314,19 +335,36 @@ class FeatureImportances:
 
 class Metric:
     def __init__(self, name, func, sim_modes):
+        """
+        At initialization, set the name, function and simulation modes.
+
+        Parameters:
+        name (str): The name of the metric.
+        func (function): The function to calculate the metric.
+        sim_modes (list): A list of the simulation modes, including Crocus.
+        """
         self.name = name
         self.func = func
         self.df = pd.DataFrame(columns = sim_modes + ['n'])
         self.sim_modes = sim_modes
 
     def calculate_and_append(self, data, name):
+        """
+        Calculate the metric for the given data and append it to the DataFrame.
+
+        Parameters:
+        data (pd.DataFrame): The data to calculate the metric on.
+        name (str): The name of the station or 'TEST'.
+        """
         self.df.loc[name] = [self.func(data['obs_swe'], data[mode]) for mode in self.sim_modes] + [len(data)]
 
     def save(self):
+        """
+        Save the DataFrame to a csv file.
+        """
         self.df.to_csv(paths.outputs / f'fwd_sim_{self.name}.csv')
 
-###############################################################################
-
+# Deinition of metrics used in the forward simulation, given the observed and simulated SWE
 def root_mean_squared_error(obs, sim):
     if len(obs) < 1:
         return float('nan')

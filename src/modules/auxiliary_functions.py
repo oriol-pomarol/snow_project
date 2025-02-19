@@ -567,7 +567,7 @@ def get_cv_info(mode):
     Report the number of cross validation splits and suffix.
 
     Parameters:
-    mode (str): The mode of the cross validation.
+    mode (str): The simulation mode (e.g., 'dir_pred', 'post_prc').
 
     Returns:
     n_splits (int): The number of cross validation splits.

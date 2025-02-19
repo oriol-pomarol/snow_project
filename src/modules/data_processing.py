@@ -84,7 +84,16 @@ def data_processing():
 ###############################################################################
 
 def obs_preprocessing(df_obs):
-    # Take the best available SWE measurements at each station and rename them
+    """
+    Return the automatic SWE measurements at 12:00 or manual if not available.
+
+    Parameters:
+    df_obs (pd.DataFrame): DataFrame containing the observed SWE data.
+
+    Returns:
+    df_obs (pd.DataFrame): DataFrame containing the processed observed SWE data.
+    """
+    # Take automatic SWE measurements if available and rename them
     if "snw_auto" in df_obs.columns:
         df_obs = df_obs[["snw_auto"]].rename(columns={"snw_auto": "obs_swe"})
     else:
@@ -105,6 +114,15 @@ def obs_preprocessing(df_obs):
 ###############################################################################
 
 def mod_preprocessing(dataset_mod):
+    """
+    Return the Crocus SWE measurements at 12:00.
+
+    Parameters:
+    dataset_mod (xr.Dataset): Dataset containing the Crocus data.
+
+    Returns:
+    df_mod (pd.DataFrame): DataFrame containing the processed Crocus SWE data.
+    """
 
     # Convert total SWE to a DataFrame and rename to mod_swe
     df_mod = dataset_mod["WSN_T_ISBA"].to_dataframe()
@@ -124,7 +142,15 @@ def mod_preprocessing(dataset_mod):
 ###############################################################################
 
 def cro_preprocessing(dataset_mod):
-        
+    """
+    Return the daily aggregated Crocus snowpack state variables.
+
+    Parameters:
+    dataset_mod (xr.Dataset): Dataset containing the Crocus data.
+
+    Returns:
+    df_agg (pd.DataFrame): DataFrame containing the aggregated Crocus data.
+    """
     # Define the names of the aggregated meteorological variables
     names_cro_agg = [
         "TG1_avg",
@@ -218,7 +244,18 @@ def cro_preprocessing(dataset_mod):
 ###############################################################################
 
 def met_preprocessing(df_met, lat_station, lng_station):
+    """
+    Return the daily aggregated meteorological variables.
 
+    Parameters:
+    df_met (pd.DataFrame): DataFrame containing the meteorological data.
+    lat_station (float): Latitude of the station.
+    lng_station (float): Longitude of the station.
+
+    Returns:
+    df_agg_lagged (pd.DataFrame): DataFrame containing the processed
+    meteorological data.
+    """
     # Define the names of the aggregated meteorological variables
     names_met_agg = [
         "Psurf_avg",
