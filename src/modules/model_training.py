@@ -116,8 +116,8 @@ def model_training():
                 df_aug = pd.concat([df_aug, pd.DataFrame(dict_aug)], ignore_index=True)
 
         # Save the dataframes
-        df_trn.to_csv(paths.temp / f'pred_vs_true_{mode}.csv', index=False)
-        df_tst.to_csv(paths.temp / f'pred_vs_true_tst_{mode}.csv', index=False)
+        df_trn.to_csv(paths.temp / f'pred_vs_true_{mode}_trn.csv', index=False)
+        df_tst.to_csv(paths.temp / f'pred_vs_true_{mode}_tst.csv', index=False)
         if mode == 'data_aug':
             df_aug.to_csv(paths.temp / f'pred_vs_true_{mode}_aug.csv', index=False)
         
