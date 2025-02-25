@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from config import paths, cfg
-from .auxiliary_functions import preprocess_data_lstm
+from .auxiliary_functions import preprocess_data_lstm, drop_samples
 
 class Model:
     def __init__(self, mode):
@@ -178,23 +178,7 @@ class Model:
         """
         # Drop a percentage of the data if specified
         if cfg.drop_data > 0:
-
-            # Set the number of samples to keep, ensuring it is at least 101
-            n_end_samples = max(10, int(len(X) * (1 - cfg.drop_data)))
-
-            # Create a mask to keep a random subset of the data with n_end_samples
-            mask = np.zeros(len(X), dtype=bool)
-            mask[-n_end_samples:] = True
-            np.random.shuffle(mask)
-
-            # Apply the mask to the training data
-            X = X[mask]
-            y = y[mask]
-
-            # If sample_weight is provided, drop the corresponding samples
-            sample_weight = kwargs.get('sample_weight')
-            if sample_weight is not None:
-                kwargs['sample_weight'] = kwargs['sample_weight'][mask]
+            X, y, sample_weight = drop_samples([X, y, sample_weight], cfg.drop_data)
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
@@ -286,18 +270,7 @@ class Model:
         """
         # Drop a percentage of the data if specified
         if cfg.drop_data > 0:
-
-            # Set the number of samples to keep, ensuring it is at least 101
-            n_end_samples = max(10, int(len(X) * (1 - cfg.drop_data)))
-
-            # Create a mask to keep a random subset of the data with n_end_samples
-            mask = np.zeros(len(X), dtype=bool)
-            mask[-n_end_samples:] = True
-            np.random.shuffle(mask)
-
-            # Apply the mask to the training data
-            X = X[mask]
-            y = y[mask]
+            X, y = drop_samples([X, y], cfg.drop_data)
 
         # Normalize the input data
         if self.scaler is not None:

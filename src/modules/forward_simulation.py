@@ -10,6 +10,7 @@ from .auxiliary_functions import (
     get_cv_info,
     temporal_test_split,
     mask_measurements_by_year,
+    drop_samples,
 )
 
 def forward_simulation():
@@ -45,11 +46,11 @@ def forward_simulation():
 
     # Define the metrics
     metrics = [
-        Metric('rmse', root_mean_squared_error, sim_modes),
-        Metric('mae', mean_absolute_error, sim_modes),
-        Metric('mbe', mean_bias_error, sim_modes),
-        Metric('nse', nash_sutcliffe_efficiency, sim_modes),
-        Metric('dtw', dynamic_time_warping, sim_modes)
+        Metric('rmse', root_mean_squared_error),
+        Metric('mae', mean_absolute_error),
+        Metric('mbe', mean_bias_error),
+        Metric('nse', nash_sutcliffe_efficiency),
+        Metric('dtw', dynamic_time_warping)
     ]
 
     # Start a list to store the test station's dataframes
@@ -60,14 +61,15 @@ def forward_simulation():
         print(f"Simulating station {station_idx+1} of {len(cfg.station_names)}.")
 
         # Take only a fraction of the data if specified
-        df_station = df_station.iloc[:int(len(df_station) * (1 - cfg.drop_data))]
+        df_station = df_station.iloc[int(cfg.drop_data*len(df_station)):]
 
         # If in temporal split mode, append the split index to the dataframe
         if cfg.temporal_split and (station_name in cfg.trn_stn):
             df_station['temporal_split'] = 0
-            split_dates_stn = split_dates.loc[station_name]
-            for i, (start_date, end_date) in enumerate(zip(split_dates_stn['tst_start_date'],
-                                                           split_dates_stn['tst_end_date'])):
+            split_dates_stn = df_split_dates.loc[station_name]
+            start_end_tst = zip(split_dates_stn['tst_start_date'],
+                                  split_dates_stn['tst_end_date'])
+            for i, (start_date, end_date) in enumerate(start_end_tst):
                 tst_cond = (df_station.index >= start_date) & (df_station.index < end_date)
                 df_station.loc[tst_cond, 'temporal_split'] = i
 
@@ -131,9 +133,6 @@ def forward_simulation():
         df_swe['obs_swe'] = df_station['obs_swe']
         df_swe['mod_swe'] = df_station['mod_swe']
 
-        # Create a list with the simulation modes plus Crocus
-        sim_modes = ['mod_swe'] + list(cfg.modes().keys())
-
         # Calculate the nNSE for the training set if in temporal split
         if cfg.temporal_split and (station_name in cfg.trn_stn):
 
@@ -185,6 +184,10 @@ def forward_simulation():
         trn_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.trn_stn]
         tst_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.tst_stn]
 
+        # Take only a fraction of the data if specified
+        trn_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in trn_dfs]
+        tst_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in tst_dfs]
+
         # Get the predicted SWE for the SHAP analysis
         trn_swe_dfs = [pd.read_csv(paths.temp / f'df_{station}_pred_swe.csv', index_col=0) for station in cfg.trn_stn]
         tst_swe_dfs = [pd.read_csv(paths.temp / f'df_{station}_pred_swe.csv', index_col=0) for station in cfg.tst_stn]
@@ -211,15 +214,16 @@ def forward_simulation():
         for s, model in enumerate(models):
             # Take the corresponding training and test data
             if cfg.temporal_split:
-                y = None
-                X_trn, X_tst, _, _ = temporal_test_split(trn_dfs, y, s)
+                if cfg.drop_data > 0:
+                    X_trn, X_tst = pd.concat(trn_dfs), pd.concat(trn_dfs)
+                else:
+                    y = None
+                    X_trn, X_tst, _, _ = temporal_test_split(trn_dfs, y, s)
             else:
                 X_trn, X_tst = pd.concat(trn_dfs), tst_dfs[s]
 
             # Randomly sample the test data for the explanations, if specified
-            X_tst_explain = X_tst.sample(frac=1 - cfg.drop_data_expl)
-            if len(X_tst_explain) < 10:
-                X_tst_explain = X_tst.sample(n=10)
+            X_tst_explain = drop_samples([X_tst,], cfg.drop_data_expl)[0]
                 
             # Train the SHAP explainer and get the explanation
             print(f"Training the SHAP explainer for mode {mode} and split {s}.")
@@ -334,19 +338,19 @@ class FeatureImportances:
 ###############################################################################
 
 class Metric:
-    def __init__(self, name, func, sim_modes):
+    def __init__(self, name, func):
         """
-        At initialization, set the name, function and simulation modes.
+        At initialization, set the name and function associated to the metric
+        and create an empty DataFrame to store the results.
 
         Parameters:
         name (str): The name of the metric.
         func (function): The function to calculate the metric.
-        sim_modes (list): A list of the simulation modes, including Crocus.
         """
         self.name = name
         self.func = func
-        self.df = pd.DataFrame(columns = sim_modes + ['n'])
-        self.sim_modes = sim_modes
+        self.sim_modes = ['mod_swe'] + list(cfg.modes().keys())
+        self.df = pd.DataFrame(columns = self.sim_modes + ['n'])
 
     def calculate_and_append(self, data, name):
         """

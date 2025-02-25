@@ -44,11 +44,10 @@ def model_training():
             X_obs = [df.filter(regex=predictors) for df in trn_dfs]
             y_obs = [df[['delta_obs_swe']] for df in trn_dfs]
 
-            # Split data into train/test sets and define model suffix for...
+            # Split data into train/test sets for...
             # 1) temporal split 
             if cfg.temporal_split:
                 X_trn, X_tst, y_trn, y_tst = temporal_test_split(X_obs, y_obs, s)
-                suffix = f'temp_split_{s}'
             # 2) spatial split
             else:
                 X_trn, y_trn = X_obs, y_obs
@@ -56,13 +55,11 @@ def model_training():
                 if mode == 'data_aug':
                     X_tst = tst_dfs[s].filter(regex=predictors)
                     y_tst = tst_dfs[s][['delta_obs_swe']]
-                    suffix = f'aug_split_{s}'
 
                 # 2.2) other setups
                 else:
                     X_tst = pd.concat([df.filter(regex=predictors) for df in tst_dfs])
                     y_tst = pd.concat([df[['delta_obs_swe']] for df in tst_dfs])
-                    suffix = ''
             
             # Create a new model object and load the hyperparameters
             model = Model(mode)

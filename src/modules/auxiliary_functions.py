@@ -494,7 +494,8 @@ def temporal_test_split(X, y, split_idx):
     date_columns = ['tst_start_date', 'tst_end_date', 'val_start_date', 'val_end_date']
 
     # Load the split dates
-    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1], parse_dates=date_columns)
+    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv',
+                                 index_col=[0, 1], parse_dates=date_columns)
 
     # Initialize lists to store the training and validation data
     X_trn, y_trn, X_tst, y_tst = [], [], [], []
@@ -502,7 +503,7 @@ def temporal_test_split(X, y, split_idx):
     for i, station in enumerate(cfg.trn_stn):
 
         # Retrieve the split dates for the current station and split
-        tst_start_date, tst_end_date, val_start_date, val_end_date = \
+        tst_start_date, tst_end_date, _, _ = \
             df_split_dates.loc[(station, split_idx)].values
         
         # Filter the trn and tst data conditions for the current station and split
@@ -512,13 +513,15 @@ def temporal_test_split(X, y, split_idx):
                    (X[i].index < tst_end_date)
         # Append the training and test data
         X_trn.append(X[i].loc[trn_cond])
-        y_trn.append(y[i].loc[trn_cond])
         X_tst.append(X[i].loc[tst_cond])
-        y_tst.append(y[i].loc[tst_cond])
+        if y is not None:
+            y_trn.append(y[i].loc[trn_cond])
+            y_tst.append(y[i].loc[tst_cond])
 
     # Concatenate the training and test data
-    X_trn, y_trn = pd.concat(X_trn), pd.concat(y_trn)
-    X_tst, y_tst = pd.concat(X_tst), pd.concat(y_tst)
+    X_trn, X_tst = pd.concat(X_trn), pd.concat(X_tst)
+    if y is not None:
+        y_trn, y_tst = pd.concat(y_trn), pd.concat(y_tst)
 
     return X_trn, X_tst, y_trn, y_tst
 
@@ -559,6 +562,34 @@ def mask_measurements_by_year(df, year, split_dates=None):
         raise ValueError(f'Invalid input year: {year}')
     
     return df[mask]
+
+###############################################################################
+
+def drop_samples(dfs, drop_pct, min_samples=10):
+    """
+    Drop a percentage of samples from the dataframes.
+
+    Parameters:
+    dfs (list): A list containing the dataframes to drop samples from.
+    drop_pct (float): The percentage of samples to drop.
+    min_samples (int): The minimum number of samples to keep.
+
+    Returns:
+    dfs (list): A list containing the dataframes with the dropped samples.
+    """
+    
+    # Set the number of samples to keep, ensuring it is at least min_samples
+    n_end_samples = max(min_samples, int(len(dfs[0]) * (1 - drop_pct)))
+
+    # Create a mask to keep a random subset of the data with n_end_samples
+    mask = np.zeros(len(dfs[0]), dtype=bool)
+    mask[-n_end_samples:] = True
+    np.random.shuffle(mask)
+
+    # Apply the mask to the dataframes, skip if it is None
+    dfs = [df[mask] if df is not None else None for df in dfs]
+
+    return dfs
 
 ###############################################################################
 

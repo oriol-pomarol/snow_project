@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import itertools
+import copy
 from config import cfg, paths
 from .model_class import Model
 from .auxiliary_functions import (
@@ -52,8 +53,11 @@ def model_selection():
         losses = get_losses(X_obs, y_obs, X_aug, y_aug,
                             models, mode)
 
-        # Select the best model based on the losses
+        # Find the mean loss per split and save hyperparameter losses
         mean_losses = np.mean(losses, axis=1)
+        save_hp_losses(models, losses, mean_losses, mode)
+
+        # Select the best model based on the losses
         best_model = models[np.argmin(mean_losses)]
 
         # Set epochs to the median of best epochs for all splits, if not a RF
@@ -65,7 +69,7 @@ def model_selection():
         if mode == 'data_aug' and cfg.rel_weights:
 
             # Initialize a list of the best model with different rel_weights
-            models_aug = [best_model.copy() for _ in cfg.rel_weights]
+            models_aug = [copy.deepcopy(best_model) for _ in cfg.rel_weights]
             for model, rel_weight in zip(models_aug, cfg.rel_weights):
                 model.rel_weight = rel_weight
 
@@ -82,9 +86,6 @@ def model_selection():
             losses = np.concatenate((losses, losses_aug))
             mean_losses = np.concatenate((mean_losses, mean_losses_aug))
             models += models_aug
-
-        # Save the hyperparameters and losses to a csv
-        best_model = save_hp_losses(models, losses, mean_losses, mode)
 
         # Save the best model hyperparameters to a json
         best_model.save_hps()

@@ -3,7 +3,6 @@ from modules.data_processing import data_processing
 from modules.model_selection import model_selection
 from modules.model_training import model_training
 from modules.forward_simulation import forward_simulation
-from modules.simulation_analysis import simulation_analysis
 from config import cfg, paths
 
 # Define the values for the configuration parameters
@@ -71,11 +70,6 @@ for lag in lag_values:
         print('Performing forward simulation...')
         forward_simulation()
         print('Successfully performed forward simulation...')
-
-        # Analyze the simulation results
-        print('Analyzing simulation results...')
-        simulation_analysis()
-        print('Successfully analyzed simulation results...')
 
         # Print execution time
         end_time = time.time()
