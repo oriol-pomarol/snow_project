@@ -1,5 +1,6 @@
 import joblib
 import json
+import time
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -178,7 +179,12 @@ class Model:
         """
         # Drop a percentage of the data if specified
         if cfg.drop_data > 0:
+            sample_weight = kwargs.get("sample_weight", None)
             X, y, sample_weight = drop_samples([X, y, sample_weight], cfg.drop_data)
+            kwargs["sample_weight"] = sample_weight
+
+        # Start a timer to measure the training time
+        start_train_time = time.time()
         
         # Fit the data with keras if it is a neural network
         if self.model_type in ['nn', 'lstm']:
@@ -222,6 +228,9 @@ class Model:
         # Fit the data with sklearn if it is a random forest
         elif self.model_type == 'rf':
             self.model.fit(X, y.squeeze(), **kwargs)
+
+        # Print the training time
+        print(f"Training time: {time.time() - start_train_time:.2f} seconds")
 
         return
 
