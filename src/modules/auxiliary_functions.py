@@ -278,7 +278,7 @@ def integrate_aug_data(X_trn, y_trn, X_aug, y_aug, rel_weight):
 
     Returns:
     X_trn (pd.DataFrame): The training dataframe with the integrated augmented meteorological variables.
-    y_trn (pd.Series): The training series with the integrated augmented observed SWE values.
+    y_trn (pd.DataFrame): The training series with the integrated augmented observed SWE values.
     sample_weight (np.array): The training weights of the data.
     """
     # Concatenate the augmented data
@@ -308,6 +308,9 @@ def replace_obs_dropna(aug_df):
     Returns:
     aug_df (pd.DataFrame): The clean augmented dataframe with the replaced SWE values.
     """
+    # Make a copy of the dataframe
+    aug_df = aug_df.copy()
+    
     # Drop the observed SWE and derived columns
     aug_df.drop(columns=['obs_swe', 'delta_obs_swe'], inplace=True)
 

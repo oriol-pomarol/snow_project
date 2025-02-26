@@ -41,8 +41,9 @@ def forward_simulation():
         dict_models[mode] = model_list
 
     # Load the split dates and convert them to datetime
-    df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
-    df_split_dates = df_split_dates.apply(pd.to_datetime)
+    if cfg.temporal_split:
+        df_split_dates = pd.read_csv(paths.temp / 'split_dates.csv', index_col=[0, 1])
+        df_split_dates = df_split_dates.apply(pd.to_datetime)
 
     # Define the metrics
     metrics = [
@@ -165,7 +166,7 @@ def forward_simulation():
 
     # Calculate the metrics for all observations and save the results
     for metric in metrics:
-        metric.calculate_and_append(df_test, 'TEST')
+        metric.calculate_and_append(df_test.dropna(), 'TEST')
         metric.save()
 
     # Make a folder for the SHAP values
@@ -185,8 +186,9 @@ def forward_simulation():
         tst_dfs = [dict_dfs[station].filter(regex=predictors) for station in cfg.tst_stn]
 
         # Take only a fraction of the data if specified
-        trn_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in trn_dfs]
-        tst_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in tst_dfs]
+        if cfg.drop_data > 0:
+            trn_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in trn_dfs]
+            tst_dfs = [df.iloc[int(cfg.drop_data*len(df)):] for df in tst_dfs]
 
         # Get the predicted SWE for the SHAP analysis
         trn_swe_dfs = [pd.read_csv(paths.temp / f'df_{station}_pred_swe.csv', index_col=0) for station in cfg.trn_stn]

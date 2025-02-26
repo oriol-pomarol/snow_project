@@ -50,7 +50,7 @@ def model_training():
                 X_trn, X_tst, y_trn, y_tst = temporal_test_split(X_obs, y_obs, s)
             # 2) spatial split
             else:
-                X_trn, y_trn = X_obs, y_obs
+                X_trn, y_trn = pd.concat(X_obs), pd.concat(y_obs)
                 # 2.1) data augmentation
                 if mode == 'data_aug':
                     X_tst = tst_dfs[s].filter(regex=predictors)
