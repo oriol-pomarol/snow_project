@@ -153,8 +153,6 @@ def change_meteo_units(df_agg):
     Returns:
     df_agg (pd.DataFrame): The aggregated dataframe with the converted meteorological variables.
     """
-    # Convert Tair_avg from Kelvin to Celsius
-    df_agg['Tair_avg'] = df_agg['Tair_avg'] - 273.15
 
     # Convert Psurf_avg from Pascal to atmospheres
     df_agg['Psurf_avg'] = df_agg['Psurf_avg'] * 0.00000986923267
@@ -176,9 +174,6 @@ def change_meteo_units(df_agg):
 
     # Convert SWdown_int from W/m²*h to W/m²*day
     df_agg['SWdown_int'] = df_agg['SWdown_int'] / 24
-
-    # Convert Tair_int from K*h to K*day
-    df_agg['Tair_int'] = df_agg['Tair_int'] / 24
 
     # Convert LWdown_int from W/m²*h to W/m²*day
     df_agg['LWdown_int'] = df_agg['LWdown_int'] / 24

@@ -294,6 +294,10 @@ def met_preprocessing(df_met, lat_station, lng_station):
         # Take the variable of interest from the original DataFrame
         var = df_met[var_name[:-4]].copy()
 
+        # If the variable is the temperature, convert it to Celsius
+        if var_name[:4] == "Tair":
+            var -= 273.15
+
         # Aggregate using the indicated operation according to var_name
         if var_name[-3:] == "avg":
             var_agg = var.resample("D").mean()
