@@ -6,7 +6,6 @@ from config import cfg, paths
 from .auxiliary_functions import (
     positive_integral,
     daytime_average,
-    change_meteo_units,
     add_lagged_values,
 )
 
@@ -258,15 +257,14 @@ def met_preprocessing(df_met, lat_station, lng_station):
     """
     # Define the names of the aggregated meteorological variables
     names_met_agg = [
-        "Psurf_avg",
         "Qair_avg",
         "Qair_dav",
         "Rainf_avg",
         "Rainf_max",
         "Snowf_avg",
-        "LWdown_int",
+        "LWdown_avg",
         "LWdown_dav",
-        "SWdown_int",
+        "SWdown_avg",
         "SWdown_dav",
         "Tair_avg",
         "Tair_int",
@@ -314,9 +312,6 @@ def met_preprocessing(df_met, lat_station, lng_station):
             )
         # Add the variable to the DataFrame
         df_agg[var_name] = var_agg
-
-    # Change the units of the aggregated variables
-    df_agg = change_meteo_units(df_agg)
 
     # Add met_ as prefix to the variable names
     df_agg.columns = [f"met_{col}" for col in df_agg.columns]

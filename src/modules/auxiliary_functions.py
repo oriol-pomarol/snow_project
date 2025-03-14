@@ -143,45 +143,6 @@ def positive_integral(array):
 
 ###############################################################################
 
-def change_meteo_units(df_agg):
-    """
-    Convert the meteorological variables to the desired units.
-
-    Parameters:
-    df_agg (pd.DataFrame): The aggregated dataframe with the meteorological variables.
-
-    Returns:
-    df_agg (pd.DataFrame): The aggregated dataframe with the converted meteorological variables.
-    """
-
-    # Convert Psurf_avg from Pascal to atmospheres
-    df_agg['Psurf_avg'] = df_agg['Psurf_avg'] * 0.00000986923267
-
-    # Convert Qair_avg from kg/kg to g/kg
-    df_agg['Qair_avg'] = df_agg['Qair_avg'] * 1000
-
-    # Convert Qair_dav from kg/kg to g/kg
-    df_agg['Qair_dav'] = df_agg['Qair_dav'] * 1000
-
-    # Convert Rainf_avg from kg/m²/s to g/m²/s
-    df_agg['Rainf_avg'] = df_agg['Rainf_avg'] * 1000
-
-    # Convert Rainf_max from kg/m²/s to g/m²/s
-    df_agg['Rainf_max'] = df_agg['Rainf_max'] * 1000
-
-    # Convert Snowf_avg from kg/m²/s to g/m²/s
-    df_agg['Snowf_avg'] = df_agg['Snowf_avg'] * 1000
-
-    # Convert SWdown_int from W/m²*h to W/m²*day
-    df_agg['SWdown_int'] = df_agg['SWdown_int'] / 24
-
-    # Convert LWdown_int from W/m²*h to W/m²*day
-    df_agg['LWdown_int'] = df_agg['LWdown_int'] / 24
-
-    return df_agg
-
-###############################################################################
-
 def add_lagged_values(df):
     """
     Add columns containing the lagged values of the dataframe variables.
