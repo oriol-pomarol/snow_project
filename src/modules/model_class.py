@@ -230,7 +230,7 @@ class Model:
             self.model.fit(X, y.squeeze(), **kwargs)
 
         # Print the training time
-        print(f"Training time: {time.time() - start_train_time:.2f} seconds")
+        print(f"Training time: {time.time() - start_train_time:.2f} seconds.")
 
         return
 

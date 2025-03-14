@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import time
 import shap
 import fastdtw
 import matplotlib.pyplot as plt
@@ -229,6 +230,7 @@ def forward_simulation():
                 
             # Train the SHAP explainer and get the explanation
             print(f"Training the SHAP explainer for mode {mode} and split {s}.")
+            start_time = time.time()
             explainer = shap.Explainer(model.predict, X_trn)
             try:
                 explanation = explainer(X_tst_explain)
@@ -238,6 +240,8 @@ def forward_simulation():
                 print(e)
                 print("Re-running the SHAP explainer with check_additivity=False.")
                 explanation = explainer(X_tst, check_additivity=False)
+
+            print(f"SHAP training time: {time.time() - start_time:.2f} seconds.")
 
             # Append the explanation to the FeatureImportances object
             feature_importances.append_explanation(explanation, s)
