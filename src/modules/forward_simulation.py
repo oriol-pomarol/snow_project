@@ -223,7 +223,10 @@ def forward_simulation():
                     y = None
                     X_trn, X_tst, _, _ = temporal_test_split(trn_dfs, y, s)
             else:
-                X_trn, X_tst = pd.concat(trn_dfs), tst_dfs[s]
+                if mode == 'data_aug':
+                    X_trn, X_tst = pd.concat(trn_dfs), tst_dfs[s]
+                else:
+                    X_trn, X_tst = pd.concat(trn_dfs), pd.concat(tst_dfs)
 
             # Randomly sample the test data for the explanations, if specified
             X_tst_explain = drop_samples([X_tst,], cfg.drop_data_expl)[0]
