@@ -345,7 +345,7 @@ class Model:
             # Add the hyperparameters to the model name
             model_name += f"_{param_name}_{value_str}"
 
-        # Add the relative weight to the model name, if existant
+        # Add the relative weight to the model name, if existing
         if self.rel_weight is not None:
             model_name += f"_rw_{self.rel_weight:.0e}".replace("-", "_")
             
